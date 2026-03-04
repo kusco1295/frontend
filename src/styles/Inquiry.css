@@ -1,0 +1,251 @@
+.inq-page {
+  min-height: 100vh;
+  background: #f3f4f6;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px;
+}
+
+.inq-container {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  width: 100%;
+  max-width: 780px;
+  overflow: hidden;
+}
+
+.inq-header {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  padding: 32px 40px;
+  color: #fff;
+}
+
+.inq-header h2 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 6px 0;
+}
+
+.inq-header p {
+  font-size: 14px;
+  opacity: 0.85;
+  margin: 0;
+}
+
+.inq-form {
+  padding: 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.inq-error {
+  background: #fee2e2;
+  color: #dc2626;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin: 0;
+}
+
+.inq-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #667eea;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 8px;
+}
+
+.inq-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.inq-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inq-full {
+  grid-column: 1 / -1;
+}
+
+.inq-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.inq-required { color: #dc2626; }
+
+.inq-group input,
+.inq-group textarea {
+  padding: 10px 14px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #111827;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s;
+  resize: vertical;
+}
+
+.inq-group input:focus,
+.inq-group textarea:focus { border-color: #667eea; }
+
+/* File upload */
+.inq-file-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1.5px dashed #d1d5db;
+  border-radius: 8px;
+  padding: 12px 16px;
+  background: #f9fafb;
+}
+
+.inq-file-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #6b7280;
+  cursor: pointer;
+  flex: 1;
+}
+
+.inq-file-label svg { font-size: 18px; color: #667eea; }
+
+.inq-file-remove {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  transition: color 0.2s;
+}
+
+.inq-file-remove:hover { color: #dc2626; }
+
+.inq-file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.inq-file-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f3f4f6;
+  border-radius: 20px;
+  padding: 5px 10px 5px 12px;
+  font-size: 13px;
+  color: #374151;
+  max-width: 220px;
+}
+
+.inq-file-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Actions */
+.inq-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 4px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.inq-btn-cancel {
+  padding: 10px 20px;
+  background: #f3f4f6;
+  color: #374151;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.inq-btn-cancel:hover { background: #e5e7eb; }
+
+.inq-btn-submit {
+  padding: 10px 28px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.inq-btn-submit:hover    { opacity: 0.9; }
+.inq-btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Success */
+.inq-success {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  padding: 60px 40px;
+  text-align: center;
+  max-width: 480px;
+  width: 100%;
+}
+
+.inq-success-icon {
+  font-size: 64px;
+  color: #22c55e;
+  margin-bottom: 16px;
+}
+
+.inq-success h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 8px 0;
+}
+
+.inq-success p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0 0 24px 0;
+}
+
+.inq-btn-back {
+  padding: 10px 28px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.inq-btn-back:hover { opacity: 0.9; }
+
+@media (max-width: 600px) {
+  .inq-grid { grid-template-columns: 1fr; }
+  .inq-form { padding: 24px 20px; }
+  .inq-header { padding: 24px 20px; }
+}
