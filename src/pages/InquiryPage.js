@@ -42,6 +42,10 @@ const InquiryPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!form.company.trim()) { setError('Company name is required.'); return; }
+    if (!form.phone.trim()) { setError('Phone no is required.'); return; }
+    if (!form.email.trim()) { setError('Email is required.'); return; }
+    if (!form.address.trim()) { setError('Address is required.'); return; }
     if (!form.name) { setError('Name is required.'); return; }
 
     const fd = new FormData();
@@ -86,24 +90,24 @@ const InquiryPage = () => {
           <div className="inq-section-title">Contact Details</div>
           <div className="inq-grid">
             <div className="inq-group">
-              <label>Company Name</label>
-              <input type="text" name="company" placeholder="Enter company name" value={form.company} onChange={handleChange} />
+              <label>Company Name <span className="inq-required">*</span></label>
+              <input type="text" name="company" required placeholder="Enter company name" value={form.company} onChange={handleChange} />
             </div>
             <div className="inq-group">
               <label>Name <span className="inq-required">*</span></label>
-              <input type="text" name="name" placeholder="Enter your name" value={form.name} onChange={handleChange} />
+              <input type="text" name="name" required placeholder="Enter your name" value={form.name} onChange={handleChange} />
             </div>
             <div className="inq-group">
-              <label>Phone No</label>
-              <input type="text" name="phone" placeholder="Enter phone number" value={form.phone} onChange={handleChange} />
+              <label>Phone No <span className="inq-required">*</span></label>
+              <input type="text" name="phone" required placeholder="Enter phone number" value={form.phone} onChange={handleChange} />
             </div>
             <div className="inq-group">
-              <label>Email</label>
-              <input type="email" name="email" placeholder="Enter email address" value={form.email} onChange={handleChange} />
+              <label>Email <span className="inq-required">*</span></label>
+              <input type="email" name="email" required placeholder="Enter email address" value={form.email} onChange={handleChange} />
             </div>
             <div className="inq-group inq-full">
-              <label>Address</label>
-              <input type="text" name="address" placeholder="Enter address" value={form.address} onChange={handleChange} />
+              <label>Address <span className="inq-required">*</span></label>
+              <input type="text" name="address" required placeholder="Enter address" value={form.address} onChange={handleChange} />
             </div>
           </div>
 

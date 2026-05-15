@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { MdArrowBack, MdAdd, MdDelete, MdPictureAsPdf } from 'react-icons/md';
+import { MdArrowBack, MdAdd, MdDelete, MdPictureAsPdf, MdShare, MdClose } from 'react-icons/md';
 import jsPDF from 'jspdf';
 import { ROUTES } from '../constants/endpoints';
+import { customerAPI } from '../services/adminAPI';
 import logo from '../assets/logo.jpeg';
 import '../styles/Quotation.css';
 
@@ -61,6 +62,18 @@ const buildInitialDraft = (inq) => ({
     },
 });
 
+const DEPARTMENTS = [
+  'Planning Dept',
+  'Design Dept',
+  'Purchase Dept',
+  'Sales Dept',
+  'Sales Coordinator',
+  'Account Dept',
+  'Production Dept',
+  'Service Dept',
+  'Store Dept',
+];
+
 const loadDraft = (key, inq) => {
   if (!key) return buildInitialDraft(inq);
 
@@ -80,6 +93,13 @@ const loadDraft = (key, inq) => {
   } catch {
     return buildInitialDraft(inq);
   }
+};
+
+const buildAutoDocumentNumber = (numberField, inq) => {
+  const inquiryPart = inq?.inquiryNo || inq?._id || 'DRAFT';
+  if (numberField === 'quotationNo') return `QT-${inquiryPart}`;
+  if (numberField === 'invoiceNo') return `PI-${inquiryPart}`;
+  return inquiryPart;
 };
 
 const loadImageAsDataURL = async (src) => {
@@ -132,6 +152,22 @@ const DocumentComposer = ({
   const [rows, setRows] = useState(initialDraft.rows);
   const [terms, setTerms] = useState(initialDraft.terms);
   const [generating, setGenerating] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareDept, setShareDept] = useState('');
+  const [shareComment, setShareComment] = useState('');
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareError, setShareError] = useState('');
+  const [shareSuccess, setShareSuccess] = useState('');
+  const documentNumber = documentMeta[numberField];
+
+  useEffect(() => {
+    if (!numberField) return;
+    if (documentNumber) return;
+    setDocumentMeta((prev) => ({
+      ...prev,
+      [numberField]: buildAutoDocumentNumber(numberField, inq),
+    }));
+  }, [documentNumber, inq, numberField]);
 
   const handleIssuerChange = (e) => {
     setIssuer((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -194,7 +230,7 @@ const DocumentComposer = ({
   const taxAmount = taxableBase * (taxRate / 100);
   const grandTotal = taxableBase + taxAmount;
 
-  const generatePDF = async () => {
+  const buildPdfDocument = async () => {
     setGenerating(true);
     try {
       const logoData = await loadImageAsDataURL(logo);
@@ -462,11 +498,60 @@ const DocumentComposer = ({
         { maxWidth: contentW - 70 }
       );
 
-      pdf.save(`${filePrefix}-${documentMeta[numberField] || 'draft'}.pdf`);
+      return {
+        pdf,
+        filename: `${filePrefix}-${documentMeta[numberField] || 'draft'}.pdf`,
+      };
     } catch {
       // Silent failure keeps the editor usable if rendering hiccups.
+      return null;
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const generatePDF = async () => {
+    const result = await buildPdfDocument();
+    if (!result) return;
+    result.pdf.save(result.filename);
+  };
+
+  const shareDocument = async (e) => {
+    e.preventDefault();
+    setShareError('');
+    setShareSuccess('');
+
+    if (!inq?._id) {
+      setShareError('Please open this PDF from an inquiry before sharing it.');
+      return;
+    }
+    if (!shareDept) {
+      setShareError('Please select a department.');
+      return;
+    }
+
+    setShareLoading(true);
+    try {
+      const result = await buildPdfDocument();
+      if (!result) return;
+
+      const blob = result.pdf.output('blob');
+      const file = new File([blob], result.filename, { type: 'application/pdf' });
+      const fd = new FormData();
+      fd.append('department', shareDept);
+      fd.append('documentType', numberField === 'quotationNo' ? 'quotation' : 'proforma');
+      fd.append('comment', shareComment);
+      fd.append('attachment', file);
+
+      await customerAPI.shareDocument(inq._id, fd);
+      setShareDept('');
+      setShareComment('');
+      setShareOpen(false);
+      setShareSuccess('PDF shared successfully.');
+    } catch (err) {
+      setShareError(err.response?.data?.message || 'Failed to share PDF.');
+    } finally {
+      setShareLoading(false);
     }
   };
 
@@ -558,9 +643,10 @@ const DocumentComposer = ({
                 <span>{numberLabel}</span>
                 <input
                   name={numberField}
-                  value={documentMeta[numberField]}
-                  onChange={handleMetaChange}
+                  value={documentNumber || ''}
+                  readOnly
                   placeholder={numberPlaceholder}
+                  className="doc-number-readonly"
                 />
               </label>
               <label>
@@ -576,9 +662,10 @@ const DocumentComposer = ({
                 <span>Inquiry No</span>
                 <input
                   name="inquiryNo"
-                  value={documentMeta.inquiryNo}
-                  onChange={handleMetaChange}
+                  value={documentMeta.inquiryNo || ''}
+                  readOnly
                   placeholder="Inquiry number"
+                  className="doc-number-readonly"
                 />
               </label>
               <label>
@@ -950,7 +1037,67 @@ const DocumentComposer = ({
         >
           <MdPictureAsPdf /> {generating ? 'Generating...' : 'Download PDF'}
         </button>
+        <button
+          type="button"
+          className="doc-pdf-btn doc-pdf-btn--share"
+          onClick={() => setShareOpen((prev) => !prev)}
+          disabled={generating}
+        >
+          <MdShare /> Share PDF
+        </button>
       </div>
+      {shareOpen && (
+        <form className="doc-share-panel" onSubmit={shareDocument}>
+          <div className="doc-share-panel-head">
+            <strong>Share PDF with Department</strong>
+            <button
+              type="button"
+              className="doc-share-close"
+              onClick={() => setShareOpen(false)}
+            >
+              <MdClose />
+            </button>
+          </div>
+          {shareError && <p className="doc-share-error">{shareError}</p>}
+          {shareSuccess && <p className="doc-share-success">{shareSuccess}</p>}
+          <div className="doc-share-grid">
+            <label>
+              <span>Department</span>
+              <select value={shareDept} onChange={(e) => setShareDept(e.target.value)}>
+                <option value="">-- Select department --</option>
+                {DEPARTMENTS.map((dept) => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </label>
+            <label className="doc-share-full">
+              <span>Comment</span>
+              <textarea
+                value={shareComment}
+                onChange={(e) => setShareComment(e.target.value)}
+                placeholder="Optional note"
+                rows={3}
+              />
+            </label>
+          </div>
+          <div className="doc-share-actions">
+            <button
+              type="button"
+              className="doc-share-cancel"
+              onClick={() => setShareOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="doc-share-send"
+              disabled={shareLoading || generating || !shareDept}
+            >
+              {shareLoading ? 'Sharing...' : 'Send PDF'}
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 };

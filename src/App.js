@@ -16,6 +16,7 @@ import CustomerPage from './pages/CustomerPage';
 import TasksManagerPage from './pages/TasksManagerPage';
 import MessagesPage from './pages/MessagesPage';
 import TeamsPage from './pages/TeamsPage';
+import ApprovalsPage from './pages/ApprovalsPage';
 import CreateTaskPage from './pages/CreateTaskPage';
 import EditTaskPage from './pages/EditTaskPage';
 import AddMemberPage from './pages/AddMemberPage';
@@ -23,6 +24,7 @@ import InquiryPage from './pages/InquiryPage';
 import DepartmentDetailPage from './pages/DepartmentDetailPage';
 import QuotationPage from './pages/QuotationPage';
 import ProformaPage from './pages/ProformaPage';
+import ProductPage from './pages/ProductPage';
 
 // Inner component that uses useAuth
 const AppRoutes = () => {
@@ -36,6 +38,7 @@ const AppRoutes = () => {
     <Routes>
       {/* Home Route */}
       <Route path={ROUTES.HOME} element={<Home />} />
+      <Route path={ROUTES.PRODUCTS} element={<ProductPage />} />
       <Route path={ROUTES.INQUIRY} element={<InquiryPage />} />
 
       {/* Admin Auth Routes */}
@@ -74,6 +77,7 @@ const AppRoutes = () => {
         <Route path={ROUTES.ADMIN_TASKS} element={<TasksManagerPage />} />
         <Route path={ROUTES.ADMIN_MESSAGES} element={<MessagesPage />} />
         <Route path={ROUTES.ADMIN_TEAMS} element={<TeamsPage />} />
+        <Route path={ROUTES.ADMIN_APPROVALS} element={<ApprovalsPage />} />
         <Route path={ROUTES.ADMIN_CREATE_TASK} element={<CreateTaskPage />} />
         <Route path={`${ROUTES.ADMIN_EDIT_TASK}/:id`} element={<EditTaskPage />} />
         <Route path={ROUTES.ADMIN_ADD_MEMBER} element={<AddMemberPage />} />

@@ -1,23 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MdArrowBack, MdForward, MdAttachFile, MdClose, MdDownload, MdBusiness, MdEmail, MdLocationOn, MdPhone } from 'react-icons/md';
-import { customerAPI } from '../services/adminAPI';
+import { MdArrowBack, MdForward, MdAttachFile, MdClose, MdDownload, MdBusiness, MdEmail, MdLocationOn, MdPhone, MdPictureAsPdf, MdSearch, MdCheckCircle, MdPrint } from 'react-icons/md';
+import { customerAPI, materialAPI, approvalAPI } from '../services/adminAPI';
+import { useAuth } from '../hooks/useAuth';
 import { ROUTES } from '../constants/endpoints';
 import '../styles/DepartmentDetail.css';
 
 const DEPARTMENTS = [
   'Planning Dept', 'Design Dept', 'Purchase Dept', 'Sales Dept',
   'Sales Coordinator', 'Account Dept', 'Production Dept', 'Service Dept',
+  'Store Dept',
 ];
 
 const DepartmentDetailPage = () => {
   const { dept }  = useParams();
   const navigate  = useNavigate();
   const deptName  = decodeURIComponent(dept);
+  const { admin } = useAuth();
 
-  const [inquiries, setInquiries]   = useState([]);
+  const [customers, setCustomers]   = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState('');
+  const [activeSection, setActiveSection] = useState('inquiry');
 
   // expanded cards
   const [expanded, setExpanded] = useState({});
@@ -29,25 +33,283 @@ const DepartmentDetailPage = () => {
   const [forwardComment, setForwardComment] = useState({});
   const [forwardFiles, setForwardFiles]     = useState({});
   const [forwardLoading, setForwardLoading] = useState({});
+  const [materials, setMaterials] = useState([]);
+  const [materialLoading, setMaterialLoading] = useState(false);
+  const [materialError, setMaterialError] = useState('');
+  const [materialDialog, setMaterialDialog] = useState('');
+  const [selectedMaterial, setSelectedMaterial] = useState(null);
+  const [activeMaterialSuggestion, setActiveMaterialSuggestion] = useState('');
+  const [materialSearchOpen, setMaterialSearchOpen] = useState(false);
+  const [materialSearchForm, setMaterialSearchForm] = useState({ name: '', materialType: '' });
+  const [materialSearchResult, setMaterialSearchResult] = useState(null);
+  const [materialSearchError, setMaterialSearchError] = useState('');
+  const [materialForm, setMaterialForm] = useState({ name: '', materialType: '', description: '', quantity: '' });
+  const [materialSubmitting, setMaterialSubmitting] = useState(false);
+  const [materialFormError, setMaterialFormError] = useState('');
+  const [materialSuccess, setMaterialSuccess] = useState('');
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
     try {
       const res = await customerAPI.getAll();
-      const all = res.data.data.customers;
-      setInquiries(
-        all.filter((c) =>
-          c.forwardedTo === deptName ||
-          (c.department === deptName && !c.forwardedTo)
-        )
-      );
+      setCustomers(res.data.data.customers || []);
     } catch {
       setError('Failed to load inquiries.');
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const loadMaterials = useCallback(async () => {
+    if (deptName !== 'Store Dept') return;
+    setMaterialLoading(true);
+    setMaterialError('');
+    try {
+      const res = await materialAPI.getAll();
+      setMaterials(res.data.data.materials || []);
+    } catch {
+      setMaterialError('Failed to load materials.');
+    } finally {
+      setMaterialLoading(false);
+    }
+  }, [deptName]);
+
+  useEffect(() => {
+    setActiveSection(deptName === 'Store Dept' ? 'material' : 'inquiry');
+    setExpanded({});
+    setForwardOpen({});
+    setForwardDept({});
+    setForwardComment({});
+    setForwardFiles({});
+    setForwardLoading({});
+    load();
+    loadMaterials();
+  }, [deptName, load, loadMaterials]);
+
+  // Auto-fill description for withdrawals
+  useEffect(() => {
+    if (materialDialog === 'withdraw' && materialForm.name && materialForm.materialType) {
+      const match = materials.find(
+        (mat) =>
+          toCapital(mat.name) === toCapital(materialForm.name) &&
+          toCapital(mat.materialType || mat.type) === toCapital(materialForm.materialType)
+      );
+      if (match && !materialForm.description) {
+        setMaterialForm((prev) => ({ ...prev, description: match.description || '' }));
+      }
+    }
+  }, [materialDialog, materialForm.name, materialForm.materialType, materials]);
+
+  const openMaterialDialog = (mode) => {
+    setMaterialDialog(mode);
+    setMaterialForm({ name: '', materialType: '', description: '', quantity: '' });
+    setMaterialFormError('');
+    setMaterialSuccess('');
+    setActiveMaterialSuggestion('');
   };
 
-  useEffect(() => { load(); }, [deptName]);
+  const closeMaterialDialog = () => {
+    setMaterialDialog('');
+    setMaterialFormError('');
+    setMaterialSuccess('');
+    setActiveMaterialSuggestion('');
+  };
+
+  const closeMaterialSearch = () => {
+    setMaterialSearchOpen(false);
+    setMaterialSearchForm({ name: '', materialType: '' });
+    setMaterialSearchResult(null);
+    setMaterialSearchError('');
+  };
+
+  const openMaterialDetail = (material) => {
+    setSelectedMaterial(material);
+  };
+
+  const closeMaterialDetail = () => {
+    setSelectedMaterial(null);
+  };
+
+  const selectMaterialSuggestion = (field, value) => {
+    setMaterialForm((prev) => ({ ...prev, [field]: value }));
+    setActiveMaterialSuggestion('');
+  };
+
+  const getFilteredSuggestions = (options, value) => {
+    const query = String(value || '').trim().toLowerCase();
+    return options.filter((option) => option.toLowerCase().includes(query));
+  };
+
+  const handleMaterialChange = (e) => {
+    setMaterialForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleMaterialSearchChange = (e) => {
+    setMaterialSearchForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleMaterialSearch = (e) => {
+    e.preventDefault();
+    setMaterialSearchError('');
+
+    const cleanName = materialSearchForm.name.trim() ? toCapital(materialSearchForm.name) : '';
+    const cleanType = materialSearchForm.materialType.trim() ? toCapital(materialSearchForm.materialType) : '';
+
+    if (!cleanName && !cleanType) {
+      setMaterialSearchResult(null);
+      setMaterialSearchError('Please enter a material name or type.');
+      return;
+    }
+
+    const found = materials.filter((mat) => {
+      const matName = toCapital(mat.name);
+      const matType = toCapital(mat.materialType || mat.type);
+
+      if (cleanName && cleanType) {
+        return matName === cleanName && matType === cleanType;
+      } else if (cleanName) {
+        return matName === cleanName;
+      } else {
+        return matType === cleanType;
+      }
+    });
+
+    if (found.length === 0) {
+      setMaterialSearchResult(null);
+      setMaterialSearchError('No matching material found.');
+      return;
+    }
+
+    setMaterialSearchResult(found);
+  };
+
+  const handleMaterialSubmit = async (e) => {
+    e.preventDefault();
+    setMaterialFormError('');
+
+    if (!materialForm.name.trim()) {
+      setMaterialFormError('Material name is required.');
+      return;
+    }
+    if (!materialForm.materialType.trim()) {
+      setMaterialFormError('Type is required.');
+      return;
+    }
+    if (!materialForm.quantity || Number(materialForm.quantity) <= 0) {
+      setMaterialFormError('Quantity must be greater than 0.');
+      return;
+    }
+
+    if (materialDialog === 'withdraw') {
+      const match = materials.find(
+        (mat) =>
+          toCapital(mat.name) === toCapital(materialForm.name) &&
+          toCapital(mat.materialType || mat.type) === toCapital(materialForm.materialType)
+      );
+      if (match && Number(materialForm.quantity) > match.quantity) {
+        setMaterialFormError(`Insufficient stock. Only ${match.quantity} available.`);
+        return;
+      } else if (!match) {
+        setMaterialFormError('Material not found in stock.');
+        return;
+      }
+    }
+
+    setMaterialSubmitting(true);
+    try {
+      const payload = {
+        name: normalizeMaterialText(materialForm.name),
+        materialType: normalizeMaterialText(materialForm.materialType),
+        quantity: materialForm.quantity,
+      };
+
+      if (materialDialog === 'add') {
+        payload.description = materialForm.description;
+      }
+
+      if (materialDialog === 'add') {
+        await materialAPI.add(payload);
+      } else if (materialDialog === 'withdraw') {
+        await materialAPI.withdraw(payload);
+      }
+
+      await loadMaterials();
+      closeMaterialDialog();
+    } catch (err) {
+      setMaterialFormError(err.response?.data?.message || 'Failed to save material.');
+    } finally {
+      setMaterialSubmitting(false);
+    }
+  };
+
+  const handleMaterialApprove = async () => {
+    setMaterialFormError('');
+    setMaterialSuccess('');
+
+    if (!materialForm.name.trim()) {
+      setMaterialFormError('Material name is required.');
+      return;
+    }
+    if (!materialForm.materialType.trim()) {
+      setMaterialFormError('Type is required.');
+      return;
+    }
+    if (!materialForm.quantity || Number(materialForm.quantity) <= 0) {
+      setMaterialFormError('Quantity must be greater than 0.');
+      return;
+    }
+
+    if (materialDialog === 'withdraw') {
+      const match = materials.find(
+        (mat) =>
+          toCapital(mat.name) === toCapital(materialForm.name) &&
+          toCapital(mat.materialType || mat.type) === toCapital(materialForm.materialType)
+      );
+      if (match && Number(materialForm.quantity) > match.quantity) {
+        setMaterialFormError(`Insufficient stock. Only ${match.quantity} available.`);
+        return;
+      } else if (!match) {
+        setMaterialFormError('Material not found in stock.');
+        return;
+      }
+    }
+
+    setMaterialSubmitting(true);
+    try {
+      console.log('Sending material approval request...', materialForm);
+      const formData = new FormData();
+      const actionType = materialDialog === 'add' ? 'Addition' : 'Withdrawal';
+      formData.append('title', `Material ${actionType}: ${materialForm.name}`);
+      formData.append('type', 'for approval material request');
+      formData.append('description', materialForm.description || `Request for material ${actionType.toLowerCase()}.`);
+      formData.append('requestedBy', admin?.name || admin?.username || 'Store Dept User');
+      formData.append('department', deptName);
+      formData.append('materialData', JSON.stringify({
+        name: materialForm.name,
+        materialType: materialForm.materialType,
+        quantity: materialDialog === 'add' ? Number(materialForm.quantity) : -Number(materialForm.quantity),
+        description: materialForm.description
+      }));
+      
+      const res = await approvalAPI.create(formData);
+      console.log('Approval response:', res.data);
+      
+      setMaterialSuccess('Approval request sent successfully!');
+      
+      // Reset form
+      setMaterialForm({ name: '', materialType: '', description: '', quantity: '' });
+      
+      setTimeout(() => {
+        closeMaterialDialog();
+      }, 3000);
+    } catch (err) {
+      console.error('Error sending approval:', err);
+      setMaterialFormError(err.response?.data?.message || 'Failed to send approval request.');
+    } finally {
+      setMaterialSubmitting(false);
+    }
+  };
 
   const handleForward = async (id) => {
     const dept = forwardDept[id];
@@ -89,30 +351,453 @@ const DepartmentDetailPage = () => {
   const formatTime = (d) =>
     new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+  const toCapital = (value) =>
+    String(value || '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toUpperCase();
+
+  const normalizeMaterialText = (value) => toCapital(value);
+  const getMaterialTypeLabel = (material) => toCapital(material?.materialType || material?.type);
+
+  const inquiries = customers.filter((c) =>
+    c.forwardedTo === deptName ||
+    (c.department === deptName && !c.forwardedTo)
+  );
+
+  const sharedDocs = customers.flatMap((customer) =>
+    (customer.documentShares || [])
+      .filter((share) => share.toDept === deptName)
+      .map((share) => ({ ...share, customer }))
+  );
+
+  const quotationDocs = sharedDocs.filter((doc) => doc.type === 'quotation');
+  const proformaDocs = sharedDocs.filter((doc) => doc.type === 'proforma');
+  const inquiryCount = inquiries.length;
+  const quotationCount = quotationDocs.length;
+  const proformaCount = proformaDocs.length;
+  const materialCount = materials.length;
+  const materialNameOptions = Array.from(
+    new Map(
+      materials
+        .filter((mat) => !materialForm.materialType || (mat.materialType || '').trim().toLowerCase() === materialForm.materialType.trim().toLowerCase())
+        .map((mat) => (mat.name || '').trim())
+        .filter(Boolean)
+        .map((name) => [name.toLowerCase(), name])
+    ).values()
+  ).sort((a, b) => a.localeCompare(b));
+  const materialTypeOptions = Array.from(
+    new Map(
+      materials
+        .filter((mat) => !materialForm.name || (mat.name || '').trim().toLowerCase() === materialForm.name.trim().toLowerCase())
+        .map((mat) => (mat.materialType || '').trim())
+        .filter(Boolean)
+        .map((type) => [type.toLowerCase(), type])
+    ).values()
+  ).sort((a, b) => a.localeCompare(b));
+
+  const renderDocumentList = (docs, emptyLabel) => {
+    if (docs.length === 0) {
+      return <div className="empty-state"><p>{emptyLabel}</p></div>;
+    }
+
+    return (
+      <div className="dept-doc-list">
+        {docs.map((doc, index) => (
+          <div key={`${doc.attachment}-${index}`} className="dept-doc-card">
+            <div className="dept-doc-card-head">
+              <div>
+                <div className="dept-doc-card-title">
+                  <MdPictureAsPdf /> {getOriginalName(doc.attachment || 'document.pdf')}
+                </div>
+                <div className="dept-doc-card-subtitle">
+                  {doc.customer?.company || doc.customer?.name || 'Unknown customer'}
+                  {doc.customer?.inquiryNo ? ` • ${doc.customer.inquiryNo}` : ''}
+                </div>
+              </div>
+              <div className="dept-doc-card-meta">
+                <span>Shared by {doc.sharedBy || 'Unknown'}</span>
+                {doc.createdAt && <span>{formatDate(doc.createdAt)}</span>}
+              </div>
+            </div>
+            {doc.comment && <p className="dept-doc-comment">{doc.comment}</p>}
+            <div className="dept-doc-actions">
+              <a
+                href={`${BASE_URL}/uploads/${doc.attachment}`}
+                target="_blank"
+                rel="noreferrer"
+                className="dept-doc-link"
+              >
+                Open PDF
+              </a>
+              <button
+                type="button"
+                className="dept-doc-download"
+                onClick={() => handleDownload(doc.attachment)}
+              >
+                <MdDownload /> Download
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="page-container">
       <div className="dept-detail-header">
-        <button className="btn-back" onClick={() => navigate(ROUTES.ADMIN_DEPARTMENT)}>
-          <MdArrowBack /> Back
+        <button className="dept-detail-back-btn" onClick={() => navigate(ROUTES.ADMIN_DEPARTMENT)}>
+          <MdArrowBack className="dept-detail-back-icon" />
+          <span>Back</span>
         </button>
-        <div>
-          <h2 className="page-title">{deptName}</h2>
-          <p className="page-subtitle">
-            {loading ? '...' : `${inquiries.length} inquiry${inquiries.length !== 1 ? 's' : ''}`}
-          </p>
+        <div className="dept-detail-title-wrap">
+          <h2 className="page-title dept-detail-title">{deptName}</h2>
         </div>
       </div>
 
-
+      <div className="dept-section-tabs" aria-label={`${deptName} sections`}>
+        {deptName === 'Store Dept' ? (
+          <button
+            type="button"
+            className={`dept-section-tab${activeSection === 'material' ? ' dept-section-tab--active' : ''}`}
+            onClick={() => setActiveSection('material')}
+          >
+            <span>Material</span>
+            <span className="dept-section-tab-count">{materialCount}</span>
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              className={`dept-section-tab${activeSection === 'inquiry' ? ' dept-section-tab--active' : ''}`}
+              onClick={() => setActiveSection('inquiry')}
+            >
+              <span>Inquiry</span>
+              <span className="dept-section-tab-count">{inquiryCount}</span>
+            </button>
+            {deptName !== 'Sales Coordinator' && (
+              <button
+                type="button"
+                className={`dept-section-tab${activeSection === 'quotation' ? ' dept-section-tab--active' : ''}`}
+                onClick={() => setActiveSection('quotation')}
+              >
+                <span>Quotation PDF</span>
+                <span className="dept-section-tab-count">{quotationCount}</span>
+              </button>
+            )}
+            {deptName !== 'Sales Coordinator' && (
+              <button
+                type="button"
+                className={`dept-section-tab${activeSection === 'proforma' ? ' dept-section-tab--active' : ''}`}
+                onClick={() => setActiveSection('proforma')}
+              >
+                <span>Performa PDF</span>
+                <span className="dept-section-tab-count">{proformaCount}</span>
+              </button>
+            )}
+          </>
+        )}
+      </div>
 
       {loading && <p className="dept-inq-loading">Loading inquiries...</p>}
       {error   && <p className="dept-inq-error">{error}</p>}
 
-      {!loading && !error && inquiries.length === 0 && (
+      {!loading && !error && activeSection === 'inquiry' && inquiries.length === 0 && (
         <div className="empty-state"><p>No inquiries found for {deptName}.</p></div>
       )}
 
-      {!loading && inquiries.length > 0 && (
+      {!loading && !error && activeSection === 'quotation' && renderDocumentList(
+        quotationDocs,
+        `No quotation PDFs found for ${deptName}.`
+      )}
+
+      {!loading && !error && activeSection === 'proforma' && renderDocumentList(
+        proformaDocs,
+        `No proforma PDFs found for ${deptName}.`
+      )}
+
+      {!loading && !error && activeSection === 'material' && (
+        <>
+          <div className="material-action-row">
+            <button type="button" className="inq-material-btn" onClick={() => openMaterialDialog('add')}>
+              Add Material
+            </button>
+            <button type="button" className="inq-material-btn inq-material-btn--withdraw" onClick={() => openMaterialDialog('withdraw')}>
+              Withdraw Material
+            </button>
+            <button type="button" className="inq-material-btn inq-material-btn--search" onClick={() => setMaterialSearchOpen((p) => !p)}>
+              <MdSearch />
+              Search Material
+            </button>
+          </div>
+
+          {materialSearchOpen && (
+            <div className="modal-overlay" onClick={closeMaterialSearch}>
+              <div className="modal material-search-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h3>Search Material</h3>
+                  <button className="modal-close-btn" onClick={closeMaterialSearch}>
+                    <MdClose />
+                  </button>
+                </div>
+                <form className="modal-form" onSubmit={handleMaterialSearch}>
+                  <p className="material-search-help">Enter the material name, type, or both to find items in stock.</p>
+                  <div className="material-search-fields">
+                    <div className="form-group">
+                      <label>Material Name</label>
+                      <input
+                        type="text"
+                        name="name"
+                        value={materialSearchForm.name}
+                        onChange={handleMaterialSearchChange}
+                        placeholder="Enter material name"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Type</label>
+                      <input
+                        type="text"
+                        name="materialType"
+                        value={materialSearchForm.materialType}
+                        onChange={handleMaterialSearchChange}
+                        placeholder="Enter type"
+                        autoComplete="off"
+                      />
+                    </div>
+                  </div>
+                  <div className="material-search-actions">
+                    <button type="button" className="btn-cancel" onClick={closeMaterialSearch}>Clear</button>
+                    <button type="submit" className="btn-submit">Search</button>
+                  </div>
+
+                  {materialSearchError && <p className="modal-error">{materialSearchError}</p>}
+
+                  {materialSearchResult && (
+                    <div className="material-search-results">
+                      <p className="search-results-count">Found {materialSearchResult.length} matching items:</p>
+                      <div className="material-stock-grid search-results-grid">
+                        {materialSearchResult.map((mat) => (
+                          <button
+                            key={mat._id}
+                            type="button"
+                            className="material-stock-card"
+                            onClick={() => openMaterialDetail(mat)}
+                          >
+                            <div className="material-stock-card-head">
+                              <h3>{toCapital(mat.name)}</h3>
+                              <strong>{mat.quantity}</strong>
+                            </div>
+                            {(mat.materialType || mat.type) && (
+                              <p>Type: {getMaterialTypeLabel(mat)}</p>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </form>
+              </div>
+            </div>
+          )}
+
+          {materialLoading && <p className="dept-inq-loading">Loading materials...</p>}
+          {materialError && <p className="dept-inq-error">{materialError}</p>}
+
+          {!materialLoading && !materialError && (
+            <div className="material-stock-grid">
+              {materials.length > 0 ? materials.map((mat) => (
+        <button
+          key={mat._id}
+          type="button"
+          className="material-stock-card"
+          onClick={() => openMaterialDetail(mat)}
+        >
+                <div className="material-stock-card-head">
+                  <h3>{toCapital(mat.name)}</h3>
+                  <strong>{mat.quantity}</strong>
+                </div>
+                  {(mat.materialType || mat.type) && <p>Type: {getMaterialTypeLabel(mat)}</p>}
+                </button>
+              )) : (
+                <div className="empty-state"><p>No materials found.</p></div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {materialDialog && (
+        <div className="modal-overlay" onClick={closeMaterialDialog}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{materialDialog === 'add' ? 'Add Material' : 'Withdraw Material'}</h3>
+              <button className="modal-close-btn" onClick={closeMaterialDialog}><MdClose /></button>
+            </div>
+            <form className="modal-form" onSubmit={handleMaterialSubmit}>
+              {materialFormError && <p className="modal-error">{materialFormError}</p>}
+              {materialSuccess && <p className="modal-success">{materialSuccess}</p>}
+              <div className="form-group">
+                <label>Material Name <span className="required">*</span></label>
+                <div className="material-suggest-wrap">
+                  <input
+                    type="text"
+                    name="name"
+                    value={materialForm.name}
+                    onChange={handleMaterialChange}
+                    onFocus={() => setActiveMaterialSuggestion('name')}
+                    onBlur={() => setTimeout(() => setActiveMaterialSuggestion((current) => (current === 'name' ? '' : current)), 120)}
+                    placeholder="Enter material name"
+                    autoComplete="off"
+                  />
+                  {activeMaterialSuggestion === 'name' && getFilteredSuggestions(materialNameOptions, materialForm.name).length > 0 && (
+                    <div className="material-suggest-list" role="listbox" aria-label="Material name suggestions">
+                      {getFilteredSuggestions(materialNameOptions, materialForm.name).map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          className="material-suggest-item"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => selectMaterialSuggestion('name', toCapital(name))}
+                        >
+                          {toCapital(name)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Type <span className="required">*</span></label>
+                <div className="material-suggest-wrap">
+                  <input
+                    type="text"
+                    name="materialType"
+                    value={materialForm.materialType}
+                    onChange={handleMaterialChange}
+                    onFocus={() => setActiveMaterialSuggestion('materialType')}
+                    onBlur={() => setTimeout(() => setActiveMaterialSuggestion((current) => (current === 'materialType' ? '' : current)), 120)}
+                    placeholder="Enter type"
+                    autoComplete="off"
+                  />
+                  {activeMaterialSuggestion === 'materialType' && getFilteredSuggestions(materialTypeOptions, materialForm.materialType).length > 0 && (
+                    <div className="material-suggest-list" role="listbox" aria-label="Material type suggestions">
+                      {getFilteredSuggestions(materialTypeOptions, materialForm.materialType).map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          className="material-suggest-item"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => selectMaterialSuggestion('materialType', toCapital(type))}
+                        >
+                          {toCapital(type)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Description</label>
+                <input
+                  type="text"
+                  name="description"
+                  value={materialForm.description}
+                  onChange={handleMaterialChange}
+                  placeholder="Enter description"
+                />
+              </div>
+              <div className="form-group">
+                <label>Quantity <span className="required">*</span></label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  name="quantity"
+                  value={materialForm.quantity}
+                  onChange={handleMaterialChange}
+                  placeholder="Enter quantity"
+                />
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn-cancel" onClick={closeMaterialDialog}>Cancel</button>
+                <button type="button" className="btn-approve-material" onClick={handleMaterialApprove} disabled={materialSubmitting}>
+                  <MdCheckCircle /> Approve
+                </button>
+                <button type="button" className="btn-print-material">
+                  <MdPrint /> Print
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {selectedMaterial && (
+        <div className="modal-overlay" onClick={closeMaterialDetail}>
+          <div className="modal material-detail-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Material Details</h3>
+              <button className="modal-close-btn" onClick={closeMaterialDetail}><MdClose /></button>
+            </div>
+            <div className="material-detail-body">
+              <div className="material-detail-summary">
+                <div>
+                  <p className="material-detail-label">Material Name</p>
+                  <h4>{toCapital(selectedMaterial.name)}</h4>
+                </div>
+                <div className="material-detail-quantity">
+                  <span>{selectedMaterial.quantity}</span>
+                  <small>In Stock</small>
+                </div>
+              </div>
+
+              <div className="material-detail-grid">
+                <div className="material-detail-item">
+                  <span>Type</span>
+                  <strong>{(selectedMaterial.materialType || selectedMaterial.type) ? getMaterialTypeLabel(selectedMaterial) : '—'}</strong>
+                </div>
+                <div className="material-detail-item">
+                  <span>Created</span>
+                  <strong>{selectedMaterial.createdAt ? formatDate(selectedMaterial.createdAt) : '—'}</strong>
+                </div>
+                <div className="material-detail-item">
+                  <span>Updated</span>
+                  <strong>{selectedMaterial.updatedAt ? formatDate(selectedMaterial.updatedAt) : '—'}</strong>
+                </div>
+                <div className="material-detail-item material-detail-item--full">
+                  <span>Description</span>
+                  <strong>{selectedMaterial.description || 'No description provided.'}</strong>
+                </div>
+              </div>
+
+              <div className="material-detail-history">
+                <h4>Transaction History</h4>
+                {selectedMaterial.transactions?.length > 0 ? (
+                  <div className="material-detail-history-list">
+                    {[...selectedMaterial.transactions].reverse().map((tx, index) => (
+                      <div key={`${tx.createdAt || index}-${index}`} className="material-detail-history-item">
+                        <div>
+                          <strong>{tx.type === 'add' ? 'Added' : 'Withdrawn'}</strong>
+                          <span>{tx.quantity}</span>
+                        </div>
+                        <small>{tx.createdAt ? formatTime(tx.createdAt) : 'Unknown time'}</small>
+                        {tx.description && <p>{tx.description}</p>}
+                        {tx.performedBy && <p className="material-detail-performed-by">By {tx.performedBy}</p>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="material-detail-empty">No transactions found.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!loading && !error && activeSection === 'inquiry' && inquiries.length > 0 && (
         <div className="dept-inq-list">
           {inquiries.map((inq) => {
             const isForwarded = inq.forwardedTo === deptName;

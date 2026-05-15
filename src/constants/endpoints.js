@@ -23,4 +23,6 @@ export const ROUTES = {
   ADMIN_PROFORMA: '/admin/proforma-invoice',
   ADMIN_MESSAGES: '/admin/messages',
   ADMIN_TEAMS: '/admin/teams',
+  ADMIN_APPROVALS: '/admin/approvals',
+  PRODUCTS: '/products',
 };

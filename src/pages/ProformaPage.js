@@ -3,7 +3,7 @@ import DocumentComposer from '../components/DocumentComposer';
 
 const ProformaPage = () => (
   <DocumentComposer
-    pageTitle="Performa Invoice"
+    pageTitle="Performa PDF"
     documentTitle="PROFORMA INVOICE"
     numberLabel="Invoice No"
     numberField="invoiceNo"

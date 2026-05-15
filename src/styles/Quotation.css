@@ -418,7 +418,129 @@
 .doc-bottom-bar {
   display: flex;
   justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
   margin-top: 22px;
+}
+
+.doc-share-panel {
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
+}
+
+.doc-share-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.doc-share-panel-head strong {
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.doc-share-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #334155;
+  cursor: pointer;
+}
+
+.doc-share-error {
+  margin: 0 0 12px;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.doc-share-success {
+  margin: 0 0 12px;
+  color: #047857;
+  font-size: 13px;
+}
+
+.doc-share-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.doc-share-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.doc-share-grid label span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.doc-share-grid select,
+.doc-share-grid textarea {
+  width: 100%;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 12px;
+  background: #fbfcfe;
+  color: #111827;
+  padding: 10px 12px;
+  font: inherit;
+  outline: none;
+}
+
+.doc-number-readonly {
+  background: #eef2f7 !important;
+  color: #0f172a;
+  font-weight: 700;
+  cursor: not-allowed;
+}
+
+.doc-share-full {
+  grid-column: 1 / -1;
+}
+
+.doc-share-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.doc-share-cancel,
+.doc-share-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: none;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.doc-share-cancel {
+  background: #eef2f7;
+  color: #334155;
+}
+
+.doc-share-send {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
 }
 
 .doc-pdf-btn {
@@ -433,6 +555,10 @@
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 16px 30px rgba(15, 23, 42, 0.18);
+}
+
+.doc-pdf-btn--share {
+  background: linear-gradient(135deg, #10b981, #059669);
 }
 
 .doc-pdf-btn:disabled {
@@ -471,7 +597,8 @@
   .doc-company-mini-grid,
   .doc-meta-grid,
   .doc-form-grid,
-  .doc-summary-cards {
+  .doc-summary-cards,
+  .doc-share-grid {
     grid-template-columns: 1fr;
   }
 
@@ -482,5 +609,15 @@
 
   .doc-footer p {
     text-align: left;
+  }
+
+  .doc-share-actions {
+    justify-content: stretch;
+    flex-direction: column;
+  }
+
+  .doc-share-cancel,
+  .doc-share-send {
+    width: 100%;
   }
 }

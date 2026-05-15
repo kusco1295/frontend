@@ -3,7 +3,7 @@ import DocumentComposer from '../components/DocumentComposer';
 
 const QuotationPage = () => (
   <DocumentComposer
-    pageTitle="Quotation"
+    pageTitle="Quotation PDF"
     documentTitle="QUOTATION"
     numberLabel="Quotation No"
     numberField="quotationNo"

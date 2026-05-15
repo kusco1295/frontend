@@ -6,6 +6,7 @@ import {
   MdExpandMore, MdExpandLess,
   MdCalendarToday, MdDesignServices, MdShoppingCart,
   MdPointOfSale, MdAccountBalance, MdFactory, MdBuild,
+  MdCheckCircle,
 } from 'react-icons/md';
 import { useAuth } from '../hooks/useAuth';
 import { ROUTES } from '../constants/endpoints';
@@ -20,12 +21,14 @@ const DEPARTMENTS = [
   { label: 'Account Dept',       icon: <MdAccountBalance /> },
   { label: 'Production Dept',    icon: <MdFactory /> },
   { label: 'Service Dept',       icon: <MdBuild /> },
+  { label: 'Store Dept',         icon: <MdBusiness /> },
 ];
 
 const navItems = [
   { label: 'Dashboard',    icon: <MdDashboard />, path: ROUTES.ADMIN_DASHBOARD, end: true },
   { label: 'Customer',     icon: <MdPeople />,    path: ROUTES.ADMIN_CUSTOMER },
   { label: 'Manage Tasks', icon: <MdAssignment />, path: ROUTES.ADMIN_TASKS },
+  { label: 'Approvals',    icon: <MdCheckCircle />, path: ROUTES.ADMIN_APPROVALS },
   { label: 'Messages',     icon: <MdMessage />,   path: ROUTES.ADMIN_MESSAGES },
   { label: 'Teams',        icon: <MdGroups />,    path: ROUTES.ADMIN_TEAMS },
 ];
