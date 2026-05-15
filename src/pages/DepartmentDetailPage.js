@@ -47,6 +47,9 @@ const DepartmentDetailPage = () => {
   const [materialSubmitting, setMaterialSubmitting] = useState(false);
   const [materialFormError, setMaterialFormError] = useState('');
   const [materialSuccess, setMaterialSuccess] = useState('');
+  const [emailLoading, setEmailLoading] = useState({});
+  const [emailStatus, setEmailStatus] = useState({}); // { [attachment]: { type: 'success'|'error', message: '' } }
+  const [emailModal, setEmailModal] = useState({ show: false, doc: null, stage: 'confirm', message: '', subject: '', body: '', cc: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -396,6 +399,65 @@ const DepartmentDetailPage = () => {
     ).values()
   ).sort((a, b) => a.localeCompare(b));
 
+  const handleSendEmail = (doc) => {
+     if (!doc.customer?._id || !doc.attachment) return;
+     const docLabel = doc.type === 'quotation' ? 'Quotation' : 'Proforma Invoice';
+     setEmailModal({
+       show: true,
+       doc,
+       stage: 'confirm',
+       message: `Send ${docLabel} to ${doc.customer.email}?`,
+        subject: `${docLabel} from KUSCO - ${doc.customer.inquiryNo || ''}`,
+        body: `Dear ${doc.customer.name},\n\nPlease find attached the ${docLabel} for your inquiry.\n\nBest regards,\nKUSCO Team`,
+        cc: ''
+      });
+   };
+ 
+   const executeSendEmail = async () => {
+        // Access state directly to avoid any closure issues
+        const currentModal = emailModal;
+        const { doc, subject, body, cc } = currentModal;
+        
+        if (!doc) {
+          console.error('No document selected in email modal');
+          return;
+        }
+     
+        console.log('Attempting to send email with:', { 
+          to: doc.customer?.email,
+          cc: cc,
+          subject: subject,
+          messageLength: body?.length 
+        });
+
+        setEmailModal(prev => ({ ...prev, stage: 'sending', message: 'Sending email...' }));
+       
+       try {
+         const response = await customerAPI.sendDocumentEmail(doc.customer._id, {
+           filename: doc.attachment,
+           type: doc.type,
+           subject: subject,
+           message: body,
+           cc: cc
+         });
+        
+        console.log('Email API Response:', response.data);
+
+        setEmailModal(prev => ({ 
+          ...prev, 
+          stage: 'success', 
+          message: 'Email sent successfully with PDF attachment!' 
+        }));
+      } catch (err) {
+        console.error('Detailed Email Error:', err.response?.data || err.message);
+        setEmailModal(prev => ({ 
+          ...prev, 
+          stage: 'error', 
+          message: err.response?.data?.message || 'Failed to send email. Please try again.' 
+        }));
+      }
+    };
+
   const renderDocumentList = (docs, emptyLabel) => {
     if (docs.length === 0) {
       return <div className="empty-state"><p>{emptyLabel}</p></div>;
@@ -421,6 +483,7 @@ const DepartmentDetailPage = () => {
               </div>
             </div>
             {doc.comment && <p className="dept-doc-comment">{doc.comment}</p>}
+            
             <div className="dept-doc-actions">
               <a
                 href={`${BASE_URL}/uploads/${doc.attachment}`}
@@ -437,6 +500,23 @@ const DepartmentDetailPage = () => {
               >
                 <MdDownload /> Download
               </button>
+              {deptName === 'Sales Dept' && doc.customer?.email && (
+                <button
+                  type="button"
+                  className="dept-doc-link"
+                  style={{ 
+                    background: '#10b981', 
+                    color: 'white', 
+                    border: 'none', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '6px',
+                  }}
+                  onClick={() => handleSendEmail(doc)}
+                >
+                  <MdEmail /> Email
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -947,7 +1027,7 @@ const DepartmentDetailPage = () => {
                       >
                         <MdForward /> Forward to Department
                       </button>
-                      {deptName === 'Sales Coordinator' && (
+                      {(deptName === 'Sales Coordinator' || deptName === 'Sales Dept') && (
                         <>
                           <button
                             className="inq-quotation-btn"
@@ -960,6 +1040,13 @@ const DepartmentDetailPage = () => {
                             onClick={() => navigate(ROUTES.ADMIN_PROFORMA, { state: { inq } })}
                           >
                             Performa Invoice
+                          </button>
+                          <button
+                            className="inq-material-btn"
+                            onClick={() => window.location.href = `mailto:${inq.email}?subject=Inquiry Update&body=Dear ${inq.name},`}
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                          >
+                            <MdEmail /> Email
                           </button>
                         </>
                       )}
@@ -1107,6 +1194,119 @@ const DepartmentDetailPage = () => {
               </div>
             );
           })}
+        </div>
+      )}
+      {emailModal.show && (
+        <div className="modal-overlay" onClick={() => !['sending'].includes(emailModal.stage) && setEmailModal({ show: false, doc: null, stage: 'confirm', message: '', subject: '', body: '', cc: '' })}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px', width: '90%' }}>
+            <div className="modal-header">
+              <h3>Email Document</h3>
+              {emailModal.stage !== 'sending' && (
+                <button className="modal-close-btn" onClick={() => setEmailModal({ show: false, doc: null, stage: 'confirm', message: '' })}>
+                  <MdClose />
+                </button>
+              )}
+            </div>
+            <div className="modal-form" style={{ padding: '20px' }}>
+              {emailModal.stage === 'success' && (
+                <div className="modal-success" style={{ marginBottom: '20px' }}>
+                  <MdCheckCircle /> {emailModal.message}
+                </div>
+              )}
+              {emailModal.stage === 'error' && (
+                <div className="modal-error" style={{ marginBottom: '20px' }}>
+                  <MdClose /> {emailModal.message}
+                </div>
+              )}
+              
+              {emailModal.stage === 'confirm' && (
+                 <>
+                   <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '16px' }}>
+                     {emailModal.message}
+                   </p>
+                   <div className="form-group" style={{ marginBottom: '16px' }}>
+                     <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>
+                       CC (Optional)
+                     </label>
+                     <input
+                       type="text"
+                       value={emailModal.cc}
+                       onChange={(e) => setEmailModal(prev => ({ ...prev, cc: e.target.value }))}
+                       placeholder="e.g. manager@example.com, sales@example.com"
+                       style={{ 
+                         width: '100%', 
+                         padding: '10px', 
+                         borderRadius: '8px', 
+                         border: '1px solid #d1d5db',
+                         fontSize: '14px'
+                       }}
+                     />
+                   </div>
+                   <div className="form-group" style={{ marginBottom: '16px' }}>
+                     <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>
+                       Subject
+                     </label>
+                     <input
+                       type="text"
+                       value={emailModal.subject}
+                       onChange={(e) => setEmailModal(prev => ({ ...prev, subject: e.target.value }))}
+                       style={{ 
+                         width: '100%', 
+                         padding: '10px', 
+                         borderRadius: '8px', 
+                         border: '1px solid #d1d5db',
+                         fontSize: '14px'
+                       }}
+                     />
+                   </div>
+                   <div className="form-group" style={{ marginBottom: '24px' }}>
+                     <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>
+                       Message Body
+                     </label>
+                     <textarea
+                       value={emailModal.body}
+                       onChange={(e) => setEmailModal(prev => ({ ...prev, body: e.target.value }))}
+                       rows={6}
+                       style={{ 
+                         width: '100%', 
+                         padding: '10px', 
+                         borderRadius: '8px', 
+                         border: '1px solid #d1d5db',
+                         fontSize: '14px',
+                         resize: 'vertical',
+                         lineHeight: '1.5'
+                       }}
+                     />
+                   </div>
+                 </>
+               )}
+
+              {emailModal.stage === 'sending' && (
+                <div style={{ textAlign: 'center', padding: '20px' }}>
+                  <div className="dept-inq-loading" style={{ margin: '0 0 10px' }}>Sending...</div>
+                  <p>{emailModal.message}</p>
+                </div>
+              )}
+
+              <div className="modal-actions">
+                {emailModal.stage === 'confirm' && (
+                  <>
+                    <button type="button" className="btn-cancel" onClick={() => setEmailModal({ show: false, doc: null, stage: 'confirm', message: '' })}>
+                      Cancel
+                    </button>
+                    <button type="button" className="btn-approve-material" onClick={executeSendEmail}>
+                      Send Email
+                    </button>
+                  </>
+                )}
+                {(emailModal.stage === 'success' || emailModal.stage === 'error') && (
+                  <button type="button" className="btn-submit" onClick={() => setEmailModal({ show: false, doc: null, stage: 'confirm', message: '' })}>
+                    Close
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
