@@ -13,6 +13,8 @@ const defaultIssuer = {
   companyName: 'KUSCO PVT LTD',
   gstNo: '10AAMCK5128N1ZD',
   panNo: 'AAMCK5128N',
+  hsnCode: 'ABC',
+  msmeNo: '123',
   address: 'Kusha, Narhat, Nawada',
   phone: '8252745476',
   email: 'info@kusco.in',
@@ -259,7 +261,9 @@ const DocumentComposer = ({
         pdf.setFontSize(9);
         pdf.setTextColor(muted);
         pdf.text(`GST No: ${issuer.gstNo || '________________'}`, marginX + 30, 24);
-        pdf.text(`PAN No: ${issuer.panNo || '________________'}`, marginX + 30, 29);
+        pdf.text(`PAN No: ${issuer.panNo || '________________'}`, marginX + 85, 24);
+        pdf.text(`HSN Code: ${issuer.hsnCode || '________________'}`, marginX + 30, 29);
+        pdf.text(`MSME No: ${issuer.msmeNo || '________________'}`, marginX + 85, 29);
         pdf.text(
           issuer.address || 'Address line',
           marginX + 30,
@@ -599,6 +603,18 @@ const DocumentComposer = ({
                   value={issuer.panNo}
                   onChange={handleIssuerChange}
                   placeholder="PAN No"
+                />
+                <input
+                  name="hsnCode"
+                  value={issuer.hsnCode}
+                  onChange={handleIssuerChange}
+                  placeholder="HSN Code"
+                />
+                <input
+                  name="msmeNo"
+                  value={issuer.msmeNo}
+                  onChange={handleIssuerChange}
+                  placeholder="MSME No"
                 />
                 <input
                   name="phone"
