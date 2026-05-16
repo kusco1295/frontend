@@ -9,7 +9,6 @@ import '../styles/DepartmentDetail.css';
 const DEPARTMENTS = [
   'Planning Dept', 'Design Dept', 'Purchase Dept', 'Sales Dept',
   'Sales Coordinator', 'Account Dept', 'Production Dept', 'Service Dept',
-  'Store Dept',
 ];
 
 const DepartmentDetailPage = () => {
@@ -50,6 +49,12 @@ const DepartmentDetailPage = () => {
   const [emailLoading, setEmailLoading] = useState({});
   const [emailStatus, setEmailStatus] = useState({}); // { [attachment]: { type: 'success'|'error', message: '' } }
   const [emailModal, setEmailModal] = useState({ show: false, doc: null, stage: 'confirm', message: '', subject: '', body: '', cc: '' });
+  const [incomingEmails, setIncomingEmails] = useState([]);
+  const [emailsLoading, setEmailsLoading] = useState(false);
+  const [selectedEmail, setSelectedEmail] = useState(null);
+  const [forwardEmailOpen, setForwardEmailOpen] = useState(false);
+  const [forwardEmailForm, setForwardEmailForm] = useState({ dept: '', comment: '', stage: 'form', statusMessage: '' });
+  const [forwardEmailLoading, setForwardEmailLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,6 +83,19 @@ const DepartmentDetailPage = () => {
     }
   }, [deptName]);
 
+  const loadIncomingEmails = useCallback(async () => {
+    if (deptName !== 'Sales Dept') return;
+    setEmailsLoading(true);
+    try {
+      const res = await customerAPI.getIncomingEmails();
+      setIncomingEmails(res.data.data.emails || []);
+    } catch (err) {
+      console.error('Failed to load incoming emails:', err);
+    } finally {
+      setEmailsLoading(false);
+    }
+  }, [deptName]);
+
   useEffect(() => {
     setActiveSection(deptName === 'Store Dept' ? 'material' : 'inquiry');
     setExpanded({});
@@ -88,7 +106,8 @@ const DepartmentDetailPage = () => {
     setForwardLoading({});
     load();
     loadMaterials();
-  }, [deptName, load, loadMaterials]);
+    loadIncomingEmails();
+  }, [deptName, load, loadMaterials, loadIncomingEmails]);
 
   // Auto-fill description for withdrawals
   useEffect(() => {
@@ -330,6 +349,43 @@ const DepartmentDetailPage = () => {
     finally { setForwardLoading((p) => ({ ...p, [id]: false })); }
   };
 
+  const handleForwardEmailToDept = async () => {
+    if (!selectedEmail || !forwardEmailForm.dept || !forwardEmailForm.comment.trim()) return;
+    
+    setForwardEmailLoading(true);
+    setForwardEmailForm(prev => ({ ...prev, stage: 'sharing' }));
+    try {
+      const payload = {
+        toDept: forwardEmailForm.dept,
+        comment: forwardEmailForm.comment,
+        originalEmail: {
+          subject: selectedEmail.subject,
+          from: selectedEmail.from || (selectedEmail.sentBy + ' <KUSCO>'),
+          body: selectedEmail.body,
+          attachment: selectedEmail.attachment || ''
+        }
+      };
+
+      await customerAPI.forwardEmail(payload);
+      
+      setForwardEmailForm(prev => ({ 
+        ...prev, 
+        stage: 'success', 
+        statusMessage: `Email shared with ${forwardEmailForm.dept} successfully!` 
+      }));
+      await load(); 
+    } catch (err) {
+      console.error('Forward error:', err);
+      setForwardEmailForm(prev => ({ 
+        ...prev, 
+        stage: 'error', 
+        statusMessage: err.response?.data?.message || 'Failed to share email.' 
+      }));
+    } finally {
+      setForwardEmailLoading(false);
+    }
+  };
+
   // Strip the unique prefix (timestamp-random-) added by the upload middleware
   const getOriginalName = (filename) => filename.replace(/^\d+-\d+-/, '').replace(/_/g, ' ');
 
@@ -380,6 +436,27 @@ const DepartmentDetailPage = () => {
   const quotationCount = quotationDocs.length;
   const proformaCount = proformaDocs.length;
   const materialCount = materials.length;
+  
+  // Emails specifically forwarded to THIS department
+  const forwardedEmails = sharedDocs.filter(doc => doc.documentType === 'email_forward' || doc.type === 'email_forward');
+
+  const emailHistoryDocs = [
+    ...(deptName === 'Sales Dept' ? [
+      ...customers.flatMap((customer) =>
+        (customer.emailHistory || []).map((email) => ({ ...email, customer, type: 'sent' }))
+      ),
+      ...incomingEmails.map(email => ({ ...email, type: 'received' }))
+    ] : []),
+    ...forwardedEmails.map(email => ({ 
+      ...email, 
+      type: 'forwarded', 
+      subject: email.subject || 'Forwarded Email',
+      body: email.comment || '',
+      date: email.createdAt
+    }))
+  ].sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+
+  const emailCount = emailHistoryDocs.length;
   const materialNameOptions = Array.from(
     new Map(
       materials
@@ -443,11 +520,14 @@ const DepartmentDetailPage = () => {
         
         console.log('Email API Response:', response.data);
 
-        setEmailModal(prev => ({ 
-          ...prev, 
-          stage: 'success', 
-          message: 'Email sent successfully with PDF attachment!' 
-        }));
+         // Refresh data to show new email in history
+         await load();
+
+         setEmailModal(prev => ({ 
+           ...prev, 
+           stage: 'success', 
+           message: 'Email sent successfully with PDF attachment!' 
+         }));
       } catch (err) {
         console.error('Detailed Email Error:', err.response?.data || err.message);
         setEmailModal(prev => ({ 
@@ -576,6 +656,16 @@ const DepartmentDetailPage = () => {
                 <span className="dept-section-tab-count">{proformaCount}</span>
               </button>
             )}
+            {deptName !== 'Store Dept' && (
+              <button
+                type="button"
+                className={`dept-section-tab${activeSection === 'direct_email' ? ' dept-section-tab--active' : ''}`}
+                onClick={() => setActiveSection('direct_email')}
+              >
+                <span>Direct Email</span>
+                <span className="dept-section-tab-count">{emailCount}</span>
+              </button>
+            )}
           </>
         )}
       </div>
@@ -595,6 +685,75 @@ const DepartmentDetailPage = () => {
       {!loading && !error && activeSection === 'proforma' && renderDocumentList(
         proformaDocs,
         `No proforma PDFs found for ${deptName}.`
+      )}
+
+      {!loading && !error && activeSection === 'direct_email' && (
+        <div className="dept-doc-list">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
+            <button 
+              className="dept-doc-download" 
+              onClick={loadIncomingEmails} 
+              disabled={emailsLoading}
+              style={{ background: '#3b82f6', color: 'white', border: 'none' }}
+            >
+              {emailsLoading ? 'Checking Mail...' : 'Check New Emails'}
+            </button>
+          </div>
+          {emailHistoryDocs.length > 0 ? emailHistoryDocs.map((email, index) => (
+            <div 
+              key={index} 
+              className="dept-doc-card" 
+              style={{ 
+                borderLeft: email.type === 'received' ? '5px solid #3b82f6' : email.type === 'forwarded' ? '5px solid #8b5cf6' : '5px solid #10b981',
+                cursor: 'pointer',
+                transition: 'transform 0.2s'
+              }}
+              onClick={() => setSelectedEmail(email)}
+              onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+              onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+              <div className="dept-doc-card-head">
+                <div>
+                  <div className="dept-doc-card-title" style={{ color: email.type === 'received' ? '#3b82f6' : email.type === 'forwarded' ? '#8b5cf6' : '#10b981' }}>
+                    <MdEmail /> {email.subject}
+                    <span style={{ fontSize: '10px', marginLeft: '10px', padding: '2px 6px', borderRadius: '4px', background: email.type === 'received' ? '#eff6ff' : email.type === 'forwarded' ? '#f5f3ff' : '#ecfdf5', color: email.type === 'received' ? '#3b82f6' : email.type === 'forwarded' ? '#8b5cf6' : '#10b981', textTransform: 'uppercase' }}>
+                      {email.type === 'forwarded' ? 'INTERNAL' : email.type}
+                    </span>
+                  </div>
+                  <div className="dept-doc-card-subtitle">
+                    {email.type === 'received' ? `From: ${email.from}` : email.type === 'forwarded' ? `Shared with ${deptName}` : `To: ${email.customer?.email} ${email.cc ? `(CC: ${email.cc})` : ''}`}
+                  </div>
+                </div>
+                <div className="dept-doc-card-meta">
+                  <span>{email.type === 'received' ? '' : email.type === 'forwarded' ? `By ${email.sharedBy}` : `Sent by ${email.sentBy}`}</span>
+                  <span>{formatDate(email.createdAt || email.date)}</span>
+                </div>
+              </div>
+              <p className="dept-doc-comment" style={{ whiteSpace: 'pre-wrap', background: '#f8fafc', padding: '10px', borderRadius: '6px', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: '3', WebkitBoxOrient: 'vertical' }}>
+                {email.body}
+              </p>
+              {email.attachment && (
+                <div className="dept-doc-actions">
+                  <div className="dept-doc-card-title" style={{ fontSize: '13px', border: '1px solid #e2e8f0', padding: '4px 8px', borderRadius: '6px' }}>
+                    <MdPictureAsPdf /> {getOriginalName(email.attachment)}
+                  </div>
+                  <a
+                    href={`${BASE_URL}/uploads/${email.attachment}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="dept-doc-link"
+                  >
+                    View Attached PDF
+                  </a>
+                </div>
+              )}
+            </div>
+          )) : (
+            <div className="empty-state">
+              {emailsLoading ? <p>Checking your inbox...</p> : <p>No emails sent or received yet.</p>}
+            </div>
+          )}
+        </div>
       )}
 
       {!loading && !error && activeSection === 'material' && (
@@ -1041,13 +1200,6 @@ const DepartmentDetailPage = () => {
                           >
                             Performa Invoice
                           </button>
-                          <button
-                            className="inq-material-btn"
-                            onClick={() => window.location.href = `mailto:${inq.email}?subject=Inquiry Update&body=Dear ${inq.name},`}
-                            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                          >
-                            <MdEmail /> Email
-                          </button>
                         </>
                       )}
                       {deptName === 'Design Dept' && (
@@ -1196,6 +1348,193 @@ const DepartmentDetailPage = () => {
           })}
         </div>
       )}
+
+      {selectedEmail && (
+        <div className="modal-overlay" onClick={() => setSelectedEmail(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%' }}>
+            <div className="modal-header">
+              <h3>{selectedEmail.type === 'received' ? 'Incoming Email' : selectedEmail.type === 'forwarded' ? 'Internal Message' : 'Sent Email'}</h3>
+              <button className="modal-close-btn" onClick={() => setSelectedEmail(null)}>
+                <MdClose />
+              </button>
+            </div>
+            <div className="modal-form" style={{ padding: '20px' }}>
+              <div style={{ marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '15px' }}>
+                <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#1f2937', marginBottom: '10px' }}>{selectedEmail.subject}</h2>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 15px', fontSize: '14px', color: '#64748b' }}>
+                  <strong>From:</strong> <span>{selectedEmail.type === 'forwarded' ? `${selectedEmail.sharedBy} (${selectedEmail.fromDept})` : (selectedEmail.from || (selectedEmail.sentBy + ' <KUSCO>'))}</span>
+                  <strong>To:</strong> <span>{selectedEmail.to || selectedEmail.customer?.email}</span>
+                  {selectedEmail.cc && <><strong>CC:</strong> <span>{selectedEmail.cc}</span></>}
+                  <strong>Date:</strong> <span>{formatDate(selectedEmail.createdAt || selectedEmail.date)}</span>
+                </div>
+              </div>
+
+              <div 
+                style={{ 
+                  backgroundColor: selectedEmail.type === 'forwarded' ? '#f5f3ff' : '#f8fafc', 
+                  padding: '20px', 
+                  borderRadius: '8px', 
+                  minHeight: '200px', 
+                  maxHeight: '500px', 
+                  overflowY: 'auto',
+                  fontSize: '15px',
+                  lineHeight: '1.6',
+                  color: '#334155',
+                  whiteSpace: 'pre-wrap',
+                  border: selectedEmail.type === 'forwarded' ? '1px solid #ddd6fe' : 'none'
+                }}
+              >
+                {selectedEmail.body}
+              </div>
+
+              {selectedEmail.attachment && (
+                <div style={{ marginTop: '20px', padding: '15px', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <MdPictureAsPdf size={24} color="#ef4444" />
+                    <span style={{ fontWeight: '600' }}>{getOriginalName(selectedEmail.attachment)}</span>
+                  </div>
+                  <a
+                    href={`${BASE_URL}/uploads/${selectedEmail.attachment}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="dept-doc-link"
+                    style={{ margin: 0 }}
+                  >
+                    View Attachment
+                  </a>
+                </div>
+              )}
+
+              <div className="modal-actions" style={{ marginTop: '20px' }}>
+                <button type="button" className="btn-cancel" onClick={() => setSelectedEmail(null)}>
+                  Close
+                </button>
+                <button 
+                  type="button" 
+                  className="inq-forward-btn" 
+                  onClick={() => {
+                    setForwardEmailOpen(true);
+                    setSelectedEmail(null); // Close the preview modal
+                    setForwardEmailForm({ dept: '', comment: '', stage: 'form', statusMessage: '' });
+                  }}
+                  style={{ margin: 0, background: '#8b5cf6' }}
+                >
+                  Internal Share
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {forwardEmailOpen && (
+        <div className="modal-overlay" onClick={() => !forwardEmailLoading && forwardEmailForm.stage === 'form' && setForwardEmailOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', width: '90%' }}>
+            <div className="modal-header">
+              <h3>Share Email Internally</h3>
+              {forwardEmailForm.stage !== 'sharing' && (
+                <button className="modal-close-btn" onClick={() => setForwardEmailOpen(false)}>
+                  <MdClose />
+                </button>
+              )}
+            </div>
+            <div className="modal-form" style={{ padding: '20px' }}>
+              {forwardEmailForm.stage === 'success' && (
+                <div className="modal-success" style={{ marginBottom: '20px' }}>
+                  <MdCheckCircle /> {forwardEmailForm.statusMessage}
+                </div>
+              )}
+              {forwardEmailForm.stage === 'error' && (
+                <div className="modal-error" style={{ marginBottom: '20px' }}>
+                  <MdClose /> {forwardEmailForm.statusMessage}
+                </div>
+              )}
+
+              {forwardEmailForm.stage === 'form' && (
+                <>
+                  <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>
+                      Target Department
+                    </label>
+                    <select
+                      value={forwardEmailForm.dept}
+                      onChange={(e) => setForwardEmailForm(prev => ({ ...prev, dept: e.target.value }))}
+                      style={{ 
+                        width: '100%', 
+                        padding: '10px', 
+                        borderRadius: '8px', 
+                        border: '1px solid #d1d5db',
+                        fontSize: '14px'
+                      }}
+                    >
+                      <option value="">Select Dept</option>
+                      <option value="Planning Dept">Planning Dept</option>
+                      <option value="Design Dept">Design Dept</option>
+                      <option value="Purchase Dept">Purchase Dept</option>
+                      <option value="Sales Dept">Sales Dept</option>
+                      <option value="Sales Coordinator">Sales Coordinator</option>
+                      <option value="Account Dept">Account Dept</option>
+                      <option value="Production Dept">Production Dept</option>
+                      <option value="Service Dept">Service Dept</option>
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>
+                      Internal Comment
+                    </label>
+                    <textarea
+                      value={forwardEmailForm.comment}
+                      onChange={(e) => setForwardEmailForm(prev => ({ ...prev, comment: e.target.value }))}
+                      rows={4}
+                      placeholder="What should this department do with this email?"
+                      style={{ 
+                        width: '100%', 
+                        padding: '10px', 
+                        borderRadius: '8px', 
+                        border: '1px solid #d1d5db',
+                        fontSize: '14px',
+                        resize: 'vertical'
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+
+              {forwardEmailForm.stage === 'sharing' && (
+                <div style={{ textAlign: 'center', padding: '20px' }}>
+                  <div className="dept-inq-loading" style={{ margin: '0 0 10px' }}>Sharing...</div>
+                  <p>Processing internal share...</p>
+                </div>
+              )}
+
+              <div className="modal-actions">
+                {forwardEmailForm.stage === 'form' && (
+                  <>
+                    <button type="button" className="btn-cancel" onClick={() => setForwardEmailOpen(false)}>
+                      Cancel
+                    </button>
+                    <button 
+                      type="button" 
+                      className="btn-submit" 
+                      disabled={forwardEmailLoading || !forwardEmailForm.dept || !forwardEmailForm.comment.trim()}
+                      onClick={handleForwardEmailToDept}
+                      style={{ background: '#8b5cf6' }}
+                    >
+                      Share with Dept
+                    </button>
+                  </>
+                )}
+                {(forwardEmailForm.stage === 'success' || forwardEmailForm.stage === 'error') && (
+                  <button type="button" className="btn-submit" onClick={() => setForwardEmailOpen(false)}>
+                    Close
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {emailModal.show && (
         <div className="modal-overlay" onClick={() => !['sending'].includes(emailModal.stage) && setEmailModal({ show: false, doc: null, stage: 'confirm', message: '', subject: '', body: '', cc: '' })}>
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px', width: '90%' }}>

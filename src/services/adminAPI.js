@@ -45,6 +45,8 @@ export const customerAPI = {
   },
   shareDocument: (id, formData) => api.post(`/customers/${id}/share-document`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
   sendDocumentEmail: (id, data) => api.post(`/customers/${id}/send-doc-email`, data),
+  getIncomingEmails: () => api.get('/customers/incoming-emails'),
+  forwardEmail: (data) => api.post('/customers/forward-email', data),
 };
 
 export const materialAPI = {
