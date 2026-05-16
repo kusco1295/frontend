@@ -53,7 +53,7 @@ const DepartmentDetailPage = () => {
   const [emailsLoading, setEmailsLoading] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [forwardEmailOpen, setForwardEmailOpen] = useState(false);
-  const [forwardEmailForm, setForwardEmailForm] = useState({ dept: '', comment: '', stage: 'form', statusMessage: '' });
+  const [forwardEmailForm, setForwardEmailForm] = useState({ dept: '', comment: '', stage: 'form', statusMessage: '', email: null });
   const [forwardEmailLoading, setForwardEmailLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -350,7 +350,8 @@ const DepartmentDetailPage = () => {
   };
 
   const handleForwardEmailToDept = async () => {
-    if (!selectedEmail || !forwardEmailForm.dept || !forwardEmailForm.comment.trim()) return;
+    const emailToShare = forwardEmailForm.email || selectedEmail;
+    if (!emailToShare || !forwardEmailForm.dept || !forwardEmailForm.comment.trim()) return;
     
     setForwardEmailLoading(true);
     setForwardEmailForm(prev => ({ ...prev, stage: 'sharing' }));
@@ -359,10 +360,10 @@ const DepartmentDetailPage = () => {
         toDept: forwardEmailForm.dept,
         comment: forwardEmailForm.comment,
         originalEmail: {
-          subject: selectedEmail.subject,
-          from: selectedEmail.from || (selectedEmail.sentBy + ' <KUSCO>'),
-          body: selectedEmail.body,
-          attachment: selectedEmail.attachment || ''
+          subject: emailToShare.subject,
+          from: emailToShare.from || (emailToShare.sentBy + ' <KUSCO>'),
+          body: emailToShare.body,
+          attachment: emailToShare.attachment || ''
         }
       };
 
@@ -438,7 +439,7 @@ const DepartmentDetailPage = () => {
   const materialCount = materials.length;
   
   // Emails specifically forwarded to THIS department
-  const forwardedEmails = sharedDocs.filter(doc => doc.documentType === 'email_forward' || doc.type === 'email_forward');
+  const forwardedEmails = sharedDocs.filter(doc => doc.type === 'email_forward');
 
   const emailHistoryDocs = [
     ...(deptName === 'Sales Dept' ? [
@@ -452,6 +453,7 @@ const DepartmentDetailPage = () => {
       type: 'forwarded', 
       subject: email.subject || 'Forwarded Email',
       body: email.comment || '',
+      attachment: email.attachment || '',
       date: email.createdAt
     }))
   ].sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
@@ -1414,8 +1416,8 @@ const DepartmentDetailPage = () => {
                   className="inq-forward-btn" 
                   onClick={() => {
                     setForwardEmailOpen(true);
+                    setForwardEmailForm({ dept: '', comment: '', stage: 'form', statusMessage: '', email: selectedEmail });
                     setSelectedEmail(null); // Close the preview modal
-                    setForwardEmailForm({ dept: '', comment: '', stage: 'form', statusMessage: '' });
                   }}
                   style={{ margin: 0, background: '#8b5cf6' }}
                 >
