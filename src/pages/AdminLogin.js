@@ -67,9 +67,7 @@ const Login = () => {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
-        // <p className="auth-footer">
-        //   Don't have an account? <Link to={ROUTES.ADMIN_SIGNUP}>Sign up here</Link>
-        // </p>
+       
       </div>
     </div>
   );
