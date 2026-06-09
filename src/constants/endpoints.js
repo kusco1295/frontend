@@ -21,6 +21,8 @@ export const ROUTES = {
   INQUIRY: '/inquiry',
   ADMIN_QUOTATION: '/admin/quotation',
   ADMIN_PROFORMA: '/admin/proforma-invoice',
+  ADMIN_TAX_INVOICE: '/admin/tax-invoice',
+  ADMIN_DELIVERY_CHALAN: '/admin/delivery-chalan',
   ADMIN_MESSAGES: '/admin/messages',
   ADMIN_TEAMS: '/admin/teams',
   ADMIN_APPROVALS: '/admin/approvals',

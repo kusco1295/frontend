@@ -6,7 +6,7 @@ import {
   MdExpandMore, MdExpandLess,
   MdCalendarToday, MdDesignServices, MdShoppingCart,
   MdPointOfSale, MdAccountBalance, MdFactory, MdBuild,
-  MdCheckCircle,
+  MdCheckCircle, MdVerifiedUser, MdLocalShipping, MdSettingsInputComponent, MdScience
 } from 'react-icons/md';
 import { useAuth } from '../hooks/useAuth';
 import { ROUTES } from '../constants/endpoints';
@@ -22,6 +22,10 @@ const DEPARTMENTS = [
   { label: 'Production Dept',    icon: <MdFactory /> },
   { label: 'Service Dept',       icon: <MdBuild /> },
   { label: 'Store Dept',         icon: <MdBusiness /> },
+  { label: 'Quality Dept',       icon: <MdVerifiedUser /> },
+  { label: 'Dispatch Dept',      icon: <MdLocalShipping /> },
+  { label: 'Assembly Dept',      icon: <MdSettingsInputComponent /> },
+  { label: 'R&D Dept',           icon: <MdScience /> },
 ];
 
 const navItems = [

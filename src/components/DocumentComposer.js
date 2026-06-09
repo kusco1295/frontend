@@ -7,14 +7,14 @@ import { customerAPI } from '../services/adminAPI';
 import logo from '../assets/logo.jpeg';
 import '../styles/Quotation.css';
 
-const emptyRow = () => ({ itemCode: '', description: '', quantity: '', rate: '', unit: '' });
+const emptyRow = () => ({ itemCode: '', description: '', hsnSac: '', quantity: '', rate: '', unit: '' });
 
 const defaultIssuer = {
   companyName: 'KUSCO PVT LTD',
   gstNo: '10AAMCK5128N1ZD',
   panNo: 'AAMCK5128N',
-  hsnCode: 'ABC',
-  msmeNo: '123',
+  hsnCode: '',
+  msmeNo: '',
   address: 'Kusha, Narhat, Nawada',
   phone: '8252745476',
   email: 'info@kusco.in',
@@ -49,6 +49,12 @@ const buildInitialDraft = (inq) => ({
     inquiryNo: inq?.inquiryNo || '',
     inquiryDate: inq?.createdAt ? new Date(inq.createdAt).toISOString().slice(0, 10) : '',
     inquiryDueDate: '',
+    chalanNo: '',
+    chalanDate: '',
+    poNo: '',
+    poDate: '',
+    destination: '',
+    dispatchThrough: '',
     documentDate: new Date().toISOString().slice(0, 10),
   },
   rows: [emptyRow()],
@@ -171,6 +177,22 @@ const DocumentComposer = ({
     }));
   }, [documentNumber, inq, numberField]);
 
+  useEffect(() => {
+    if (documentTitle === 'TAX INVOICE' || documentTitle === 'DELIVERY CHALAN') {
+      setIssuer(prev => ({
+        ...prev,
+        hsnCode: prev.hsnCode || 'ABC',
+        msmeNo: prev.msmeNo || '123'
+      }));
+    } else {
+      setIssuer(prev => ({
+        ...prev,
+        hsnCode: '',
+        msmeNo: ''
+      }));
+    }
+  }, [documentTitle]);
+
   const handleIssuerChange = (e) => {
     setIssuer((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
@@ -262,20 +284,31 @@ const DocumentComposer = ({
         pdf.setTextColor(muted);
         pdf.text(`GST No: ${issuer.gstNo || '________________'}`, marginX + 30, 24);
         pdf.text(`PAN No: ${issuer.panNo || '________________'}`, marginX + 85, 24);
-        pdf.text(`HSN Code: ${issuer.hsnCode || '________________'}`, marginX + 30, 29);
-        pdf.text(`MSME No: ${issuer.msmeNo || '________________'}`, marginX + 85, 29);
-        pdf.text(
-          issuer.address || 'Address line',
-          marginX + 30,
-          34,
-          { maxWidth: 98 }
-        );
+        
+        if (documentTitle === 'TAX INVOICE' || documentTitle === 'DELIVERY CHALAN') {
+          pdf.text(`HSN Code: ${issuer.hsnCode || '________________'}`, marginX + 30, 29);
+          pdf.text(`MSME No: ${issuer.msmeNo || '________________'}`, marginX + 85, 29);
+          pdf.text(
+            issuer.address || 'Address line',
+            marginX + 30,
+            34,
+            { maxWidth: 98 }
+          );
+        } else {
+          pdf.text(
+            issuer.address || 'Address line',
+            marginX + 30,
+            29,
+            { maxWidth: 98 }
+          );
+        }
+
         pdf.text(
           [issuer.phone ? `Ph: ${issuer.phone}` : '', issuer.email || '', issuer.website || '']
             .filter(Boolean)
             .join('  |  '),
           marginX + 30,
-          39
+          (documentTitle === 'TAX INVOICE' || documentTitle === 'DELIVERY CHALAN') ? 39 : 34
         );
 
         const boxX = 150;
@@ -303,8 +336,8 @@ const DocumentComposer = ({
         pdf.setDrawColor(203, 213, 225);
         pdf.setFillColor(255, 255, 255);
 
-        pdf.roundedRect(marginX, y, leftW, 36, 2, 2, 'S');
-        pdf.roundedRect(marginX + leftW + 4, y, rightW, 36, 2, 2, 'S');
+        pdf.roundedRect(marginX, y, leftW, 42, 2, 2, 'S');
+        pdf.roundedRect(marginX + leftW + 4, y, rightW, 42, 2, 2, 'S');
 
         pdf.setFillColor(accent);
         pdf.roundedRect(marginX, y, leftW, 8, 2, 2, 'F');
@@ -334,12 +367,19 @@ const DocumentComposer = ({
           billY += drawWrappedText(pdf, line, marginX + 3, billY, leftW - 6, 4.2);
         });
 
-        const detailLines = [
-          `${numberLabel}: ${documentMeta[numberField] || 'Draft'}`,
+        const detailLines = (documentTitle === 'TAX INVOICE' || documentTitle === 'DELIVERY CHALAN') ? [
+          `Chalan No: ${documentMeta.chalanNo || '________________'}`,
+          `Chalan Date: ${documentMeta.chalanDate || '________________'}`,
+          `PO No: ${documentMeta.poNo || '________________'}`,
+          `PO Date: ${documentMeta.poDate || '________________'}`,
+          `Destination: ${documentMeta.destination || '________________'}`,
+          `Dispatch: ${documentMeta.dispatchThrough || '________________'}`,
+        ] : [
           `Inquiry No: ${documentMeta.inquiryNo || '________________'}`,
           `Inquiry Date: ${documentMeta.inquiryDate || '________________'}`,
           `Due Date: ${documentMeta.inquiryDueDate || '________________'}`,
         ];
+        
         let detailY = y + 12;
         detailLines.forEach((line) => {
           detailY += drawWrappedText(pdf, line, marginX + leftW + 7, detailY, rightW - 6, 4.2);
@@ -347,15 +387,37 @@ const DocumentComposer = ({
       };
 
       const drawTableHeader = (y) => {
-        const columns = [
-          { label: 'Sr', width: 10 },
-          { label: 'Item Code', width: 22 },
-          { label: 'Description', width: 74 },
-          { label: 'Qty', width: 16 },
-          { label: 'Unit', width: 16 },
-          { label: 'Rate', width: 24 },
-          { label: 'Amount', width: 28 },
-        ];
+        let columns;
+        if (documentTitle === 'DELIVERY CHALAN') {
+          columns = [
+            { label: 'Sr', width: 10 },
+            { label: 'Item Code', width: 30 },
+            { label: 'Description', width: 110 },
+            { label: 'HSN/SAC', width: 25 },
+            { label: 'Qty', width: 15 },
+          ];
+        } else if (documentTitle === 'TAX INVOICE') {
+          columns = [
+            { label: 'Sr', width: 8 },
+            { label: 'Item Code', width: 20 },
+            { label: 'Description', width: 62 },
+            { label: 'HSN/SAC', width: 20 },
+            { label: 'Qty', width: 14 },
+            { label: 'Unit', width: 14 },
+            { label: 'Rate', width: 24 },
+            { label: 'Amount', width: 28 },
+          ];
+        } else {
+          columns = [
+            { label: 'Sr', width: 10 },
+            { label: 'Item Code', width: 22 },
+            { label: 'Description', width: 74 },
+            { label: 'Qty', width: 16 },
+            { label: 'Unit', width: 16 },
+            { label: 'Rate', width: 24 },
+            { label: 'Amount', width: 28 },
+          ];
+        }
 
         pdf.setDrawColor(51, 65, 85);
         pdf.setFillColor(51, 65, 85);
@@ -376,15 +438,38 @@ const DocumentComposer = ({
         const lineCount = Math.max(1, descLines.length);
         const rowH = Math.max(8, lineCount * 4.6 + 2);
         const amount = parseNumber(row.quantity) * parseNumber(row.rate);
-        const values = [
-          String(srNo),
-          row.itemCode || '',
-          descLines,
-          row.quantity || '',
-          row.unit || '',
-          formatMoney(parseNumber(row.rate)),
-          formatMoney(amount),
-        ];
+        
+        let values;
+        if (documentTitle === 'DELIVERY CHALAN') {
+          values = [
+            String(srNo),
+            row.itemCode || '',
+            descLines,
+            row.hsnSac || '',
+            row.quantity || '',
+          ];
+        } else if (documentTitle === 'TAX INVOICE') {
+          values = [
+            String(srNo),
+            row.itemCode || '',
+            descLines,
+            row.hsnSac || '',
+            row.quantity || '',
+            row.unit || '',
+            formatMoney(parseNumber(row.rate)),
+            formatMoney(amount),
+          ];
+        } else {
+          values = [
+            String(srNo),
+            row.itemCode || '',
+            descLines,
+            row.quantity || '',
+            row.unit || '',
+            formatMoney(parseNumber(row.rate)),
+            formatMoney(amount),
+          ];
+        }
 
         let x = marginX;
         pdf.setDrawColor(203, 213, 225);
@@ -394,8 +479,9 @@ const DocumentComposer = ({
 
         columns.forEach((col, idx) => {
           pdf.rect(x, y, col.width, rowH);
-          const textX = x + (idx === 0 ? col.width / 2 : idx === 6 ? col.width - 2 : 2);
-          const textOpts = idx === 0 || idx === 6 ? { align: idx === 0 ? 'center' : 'right' } : {};
+          const lastIdx = columns.length - 1;
+          const textX = x + (idx === 0 ? col.width / 2 : idx === lastIdx ? col.width - 2 : 2);
+          const textOpts = idx === 0 || idx === lastIdx ? { align: idx === 0 ? 'center' : 'right' } : {};
 
           if (idx === 2) {
             pdf.text(values[idx], x + 2, y + 5, { maxWidth: col.width - 4 });
@@ -411,8 +497,8 @@ const DocumentComposer = ({
       drawHeader();
       drawPartySection(48);
 
-      const columns = drawTableHeader(88);
-      let y = 96;
+      const columns = drawTableHeader(94);
+      let y = 102;
       rows.forEach((row, index) => {
         const rowHeight = drawRow(y, row, index + 1, columns);
         y += rowHeight;
@@ -420,41 +506,51 @@ const DocumentComposer = ({
 
       const summaryY = Math.max(y + 6, 170);
       const leftW = 122;
-      const rightX = marginX + leftW + 4;
-      const rightW = contentW - leftW - 4;
+      const rightX = marginX + ((documentTitle === 'TAX INVOICE' || documentTitle === 'DELIVERY CHALAN') ? 0 : leftW + 4);
+      const rightW = (documentTitle === 'TAX INVOICE' || documentTitle === 'DELIVERY CHALAN') ? contentW : contentW - leftW - 4;
       const summaryBoxH = 60;
 
       pdf.setDrawColor(203, 213, 225);
-      pdf.roundedRect(marginX, summaryY, leftW, summaryBoxH, 2, 2, 'S');
+      if (documentTitle !== 'TAX INVOICE' && documentTitle !== 'DELIVERY CHALAN') {
+        pdf.roundedRect(marginX, summaryY, leftW, summaryBoxH, 2, 2, 'S');
+      }
       pdf.roundedRect(rightX, summaryY, rightW, summaryBoxH, 2, 2, 'S');
 
       pdf.setFillColor(light);
-      pdf.rect(marginX, summaryY, leftW, 8, 'F');
+      if (documentTitle !== 'TAX INVOICE' && documentTitle !== 'DELIVERY CHALAN') {
+        pdf.rect(marginX, summaryY, leftW, 8, 'F');
+      }
       pdf.rect(rightX, summaryY, rightW, 8, 'F');
 
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(10);
       pdf.setTextColor(dark);
-      pdf.text('TERMS & CONDITIONS', marginX + 3, summaryY + 5.5);
+      if (documentTitle !== 'TAX INVOICE' && documentTitle !== 'DELIVERY CHALAN') {
+        pdf.text('TERMS & CONDITIONS', marginX + 3, summaryY + 5.5);
+      }
       pdf.text('TOTAL SUMMARY', rightX + 3, summaryY + 5.5);
 
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(8.2);
-      pdf.setTextColor(muted);
-      const termLines = [
-        `${taxLabel}: ${terms.tax || '0'}%`,
-        `Payment: ${terms.payment || 'As per mutual agreement'}`,
-        `Delivery: ${terms.deliverySchedule || 'As discussed'}`,
-        `Packing & Forwarding: ${terms.packingForwardingPercent || '0'}%`,
-        ...(showFreightAmountField || includeFreightInTotal ? [`Freight Amount: ${terms.freightAmount ? formatMoney(parseNumber(terms.freightAmount)) : '0.00'}`] : []),
-        `Validity: ${terms.validity || 'As per offer'}`,
-      ];
-      let termY = summaryY + 12;
-      termLines.forEach((line) => {
-        termY += drawWrappedText(pdf, line, marginX + 3, termY, leftW - 6, 4.1);
-      });
+      if (documentTitle !== 'TAX INVOICE' && documentTitle !== 'DELIVERY CHALAN') {
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(8.2);
+        pdf.setTextColor(muted);
+        const termLines = [
+          `${taxLabel}: ${terms.tax || '0'}%`,
+          `Payment: ${terms.payment || 'As per mutual agreement'}`,
+          `Delivery: ${terms.deliverySchedule || 'As discussed'}`,
+          `Packing & Forwarding: ${terms.packingForwardingPercent || '0'}%`,
+          ...(showFreightAmountField || includeFreightInTotal ? [`Freight Amount: ${terms.freightAmount ? formatMoney(parseNumber(terms.freightAmount)) : '0.00'}`] : []),
+          `Validity: ${terms.validity || 'As per offer'}`,
+        ];
+        let termY = summaryY + 12;
+        termLines.forEach((line) => {
+          termY += drawWrappedText(pdf, line, marginX + 3, termY, leftW - 6, 4.1);
+        });
+      }
 
-      const summaryLines = [
+      const summaryLines = documentTitle === 'DELIVERY CHALAN' ? [
+        { label: 'Grand Total (Qty)', value: rows.reduce((sum, row) => sum + parseNumber(row.quantity), 0).toString() },
+      ] : [
         { label: 'Subtotal', value: formatMoney(subtotal) },
         ...(includePackingForwardingInTotal ? [{ label: 'Packing & Forwarding Amount', value: formatMoney(packingForwardingAmount) }] : []),
         { label: `${taxLabel} ${terms.tax || 0}%`, value: formatMoney(taxAmount) },
@@ -462,7 +558,7 @@ const DocumentComposer = ({
       ];
       let sumY = summaryY + 14;
       summaryLines.forEach((line, index) => {
-        const isTotalRow = line.label === totalLabel;
+        const isTotalRow = line.label === totalLabel || line.label === 'Grand Total (Qty)';
         pdf.setTextColor(isTotalRow ? dark : muted);
         pdf.setFont('helvetica', isTotalRow ? 'bold' : 'normal');
         pdf.text(line.label, rightX + 3, sumY);
@@ -471,7 +567,7 @@ const DocumentComposer = ({
       });
 
       const notesText = terms.notes?.trim();
-      if (notesText) {
+      if (notesText && documentTitle !== 'TAX INVOICE' && documentTitle !== 'DELIVERY CHALAN') {
         const notesY = summaryY + summaryBoxH + 4;
         const notesH = 18;
         pdf.setDrawColor(203, 213, 225);
@@ -543,7 +639,13 @@ const DocumentComposer = ({
       const file = new File([blob], result.filename, { type: 'application/pdf' });
       const fd = new FormData();
       fd.append('department', shareDept);
-      fd.append('documentType', numberField === 'quotationNo' ? 'quotation' : 'proforma');
+      
+      let docType = 'quotation';
+      if (numberField === 'invoiceNo') docType = 'proforma';
+      if (documentTitle === 'TAX INVOICE') docType = 'tax_invoice';
+      if (documentTitle === 'DELIVERY CHALAN') docType = 'delivery_chalan';
+      
+      fd.append('documentType', docType);
       fd.append('comment', shareComment);
       fd.append('attachment', file);
 
@@ -565,7 +667,7 @@ const DocumentComposer = ({
         <button
           type="button"
           className="btn-back"
-          onClick={() => navigate(`${ROUTES.ADMIN_DEPARTMENT}/Sales%20Coordinator`)}
+          onClick={() => navigate(-1)}
         >
           <MdArrowBack /> Back
         </button>
@@ -604,18 +706,22 @@ const DocumentComposer = ({
                   onChange={handleIssuerChange}
                   placeholder="PAN No"
                 />
-                <input
-                  name="hsnCode"
-                  value={issuer.hsnCode}
-                  onChange={handleIssuerChange}
-                  placeholder="HSN Code"
-                />
-                <input
-                  name="msmeNo"
-                  value={issuer.msmeNo}
-                  onChange={handleIssuerChange}
-                  placeholder="MSME No"
-                />
+                {documentTitle === 'TAX INVOICE' && (
+                  <>
+                    <input
+                      name="hsnCode"
+                      value={issuer.hsnCode}
+                      onChange={handleIssuerChange}
+                      placeholder="HSN Code"
+                    />
+                    <input
+                      name="msmeNo"
+                      value={issuer.msmeNo}
+                      onChange={handleIssuerChange}
+                      placeholder="MSME No"
+                    />
+                  </>
+                )}
                 <input
                   name="phone"
                   value={issuer.phone}
@@ -674,34 +780,96 @@ const DocumentComposer = ({
                   onChange={handleMetaChange}
                 />
               </label>
-              <label>
-                <span>Inquiry No</span>
-                <input
-                  name="inquiryNo"
-                  value={documentMeta.inquiryNo || ''}
-                  readOnly
-                  placeholder="Inquiry number"
-                  className="doc-number-readonly"
-                />
-              </label>
-              <label>
-                <span>Inquiry Date</span>
-                <input
-                  name="inquiryDate"
-                  type="date"
-                  value={documentMeta.inquiryDate}
-                  onChange={handleMetaChange}
-                />
-              </label>
-              <label className="doc-meta-full">
-                <span>Inquiry Due Date</span>
-                <input
-                  name="inquiryDueDate"
-                  type="date"
-                  value={documentMeta.inquiryDueDate}
-                  onChange={handleMetaChange}
-                />
-              </label>
+
+              {documentTitle === 'TAX INVOICE' || documentTitle === 'DELIVERY CHALAN' ? (
+                <>
+                  <label>
+                    <span>Chalan No</span>
+                    <input
+                      name="chalanNo"
+                      value={documentMeta.chalanNo}
+                      onChange={handleMetaChange}
+                      placeholder="Chalan number"
+                    />
+                  </label>
+                  <label>
+                    <span>Chalan Date</span>
+                    <input
+                      name="chalanDate"
+                      type="date"
+                      value={documentMeta.chalanDate}
+                      onChange={handleMetaChange}
+                    />
+                  </label>
+                  <label>
+                    <span>PO No</span>
+                    <input
+                      name="poNo"
+                      value={documentMeta.poNo}
+                      onChange={handleMetaChange}
+                      placeholder="PO number"
+                    />
+                  </label>
+                  <label>
+                    <span>PO Date</span>
+                    <input
+                      name="poDate"
+                      type="date"
+                      value={documentMeta.poDate}
+                      onChange={handleMetaChange}
+                    />
+                  </label>
+                  <label>
+                    <span>Destination</span>
+                    <input
+                      name="destination"
+                      value={documentMeta.destination}
+                      onChange={handleMetaChange}
+                      placeholder="Destination"
+                    />
+                  </label>
+                  <label>
+                    <span>Dispatch Through</span>
+                    <input
+                      name="dispatchThrough"
+                      value={documentMeta.dispatchThrough}
+                      onChange={handleMetaChange}
+                      placeholder="Dispatch through"
+                    />
+                  </label>
+                </>
+              ) : (
+                <>
+                  <label>
+                    <span>Inquiry No</span>
+                    <input
+                      name="inquiryNo"
+                      value={documentMeta.inquiryNo || ''}
+                      readOnly
+                      placeholder="Inquiry number"
+                      className="doc-number-readonly"
+                    />
+                  </label>
+                  <label>
+                    <span>Inquiry Date</span>
+                    <input
+                      name="inquiryDate"
+                      type="date"
+                      value={documentMeta.inquiryDate}
+                      onChange={handleMetaChange}
+                    />
+                  </label>
+                  <label className="doc-meta-full">
+                    <span>Inquiry Due Date</span>
+                    <input
+                      name="inquiryDueDate"
+                      type="date"
+                      value={documentMeta.inquiryDueDate}
+                      onChange={handleMetaChange}
+                    />
+                  </label>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -770,22 +938,45 @@ const DocumentComposer = ({
           <section className="doc-section">
             <div className="doc-section-heading">Reference Summary</div>
             <div className="doc-summary-cards">
-              <div className="doc-summary-card">
-                <span>Inquiry</span>
-                <strong>{documentMeta.inquiryNo || 'Draft'}</strong>
-              </div>
-              <div className="doc-summary-card">
-                <span>Document</span>
-                <strong>{documentMeta[numberField] || 'Draft'}</strong>
-              </div>
-              <div className="doc-summary-card">
-                <span>Customer</span>
-                <strong>{documentMeta.customerName || 'Not set'}</strong>
-              </div>
-              <div className="doc-summary-card">
-                <span>Prepared For</span>
-                <strong>{documentMeta.customerAttention || 'Not set'}</strong>
-              </div>
+              {documentTitle === 'TAX INVOICE' || documentTitle === 'DELIVERY CHALAN' ? (
+                <>
+                  <div className="doc-summary-card">
+                    <span>Chalan No</span>
+                    <strong>{documentMeta.chalanNo || 'Not set'}</strong>
+                  </div>
+                  <div className="doc-summary-card">
+                    <span>PO No</span>
+                    <strong>{documentMeta.poNo || 'Not set'}</strong>
+                  </div>
+                  <div className="doc-summary-card">
+                    <span>Destination</span>
+                    <strong>{documentMeta.destination || 'Not set'}</strong>
+                  </div>
+                  <div className="doc-summary-card">
+                    <span>Dispatch Through</span>
+                    <strong>{documentMeta.dispatchThrough || 'Not set'}</strong>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="doc-summary-card">
+                    <span>Inquiry</span>
+                    <strong>{documentMeta.inquiryNo || 'Draft'}</strong>
+                  </div>
+                  <div className="doc-summary-card">
+                    <span>Document</span>
+                    <strong>{documentMeta[numberField] || 'Draft'}</strong>
+                  </div>
+                  <div className="doc-summary-card">
+                    <span>Customer</span>
+                    <strong>{documentMeta.customerName || 'Not set'}</strong>
+                  </div>
+                  <div className="doc-summary-card">
+                    <span>Prepared For</span>
+                    <strong>{documentMeta.customerAttention || 'Not set'}</strong>
+                  </div>
+                </>
+              )}
             </div>
           </section>
         </div>
@@ -798,10 +989,15 @@ const DocumentComposer = ({
                 <th>Sr No</th>
                 <th>Item Code</th>
                 <th>Description</th>
+                { (documentTitle === 'TAX INVOICE' || documentTitle === 'DELIVERY CHALAN') && <th>HSN/SAC</th>}
                 <th>Qty</th>
-                <th>Rate</th>
-                <th>Unit</th>
-                <th>Amount</th>
+                {documentTitle !== 'DELIVERY CHALAN' && (
+                  <>
+                    <th>Rate</th>
+                    <th>Unit</th>
+                    <th>Amount</th>
+                  </>
+                )}
                 <th className="doc-table-action">Action</th>
               </tr>
             </thead>
@@ -828,6 +1024,16 @@ const DocumentComposer = ({
                         placeholder="Description"
                       />
                     </td>
+                    {(documentTitle === 'TAX INVOICE' || documentTitle === 'DELIVERY CHALAN') && (
+                      <td>
+                        <input
+                          name="hsnSac"
+                          value={row.hsnSac || ''}
+                          onChange={(e) => handleRowChange(index, e)}
+                          placeholder="HSN/SAC"
+                        />
+                      </td>
+                    )}
                     <td>
                       <input
                         name="quantity"
@@ -839,26 +1045,30 @@ const DocumentComposer = ({
                         placeholder="0"
                       />
                     </td>
-                    <td>
-                      <input
-                        name="rate"
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={row.rate}
-                        onChange={(e) => handleRowChange(index, e)}
-                        placeholder="0.00"
-                      />
-                    </td>
-                    <td>
-                      <input
-                        name="unit"
-                        value={row.unit}
-                        onChange={(e) => handleRowChange(index, e)}
-                        placeholder="Unit"
-                      />
-                    </td>
-                    <td className="doc-amount">{formatMoney(amount)}</td>
+                    {documentTitle !== 'DELIVERY CHALAN' && (
+                      <>
+                        <td>
+                          <input
+                            name="rate"
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={row.rate}
+                            onChange={(e) => handleRowChange(index, e)}
+                            placeholder="0.00"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            name="unit"
+                            value={row.unit}
+                            onChange={(e) => handleRowChange(index, e)}
+                            placeholder="Unit"
+                          />
+                        </td>
+                        <td className="doc-amount">{formatMoney(amount)}</td>
+                      </>
+                    )}
                     <td className="doc-table-action">
                       {rows.length > 1 && (
                         <button type="button" className="doc-row-del" onClick={() => removeRow(index)}>
@@ -880,34 +1090,119 @@ const DocumentComposer = ({
         <div className="doc-bottom-grid">
           <section className="doc-section doc-summary-section">
             <div className="doc-section-heading">Totals</div>
-            <div className="doc-total-line">
-              <span>Subtotal</span>
-              <strong>{formatMoney(subtotal)}</strong>
-            </div>
-            {!moveTaxBelowPacking && (
-              <div className="doc-total-inline">
+            {documentTitle === 'DELIVERY CHALAN' ? (
+              <div className="doc-total-line doc-total-line--grand">
+                <span>Grand Total (Qty)</span>
+                <strong>{rows.reduce((sum, row) => sum + parseNumber(row.quantity), 0)}</strong>
+              </div>
+            ) : (
+              <>
+                <div className="doc-total-line">
+                  <span>Subtotal</span>
+                  <strong>{formatMoney(subtotal)}</strong>
+                </div>
+                {!moveTaxBelowPacking && (
+                  <div className="doc-total-inline">
+                    <label>
+                      <span>{taxLabel} %</span>
+                      <input
+                        name="tax"
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={terms.tax}
+                        onChange={handleTermsChange}
+                        placeholder="0"
+                      />
+                    </label>
+                  </div>
+                )}
+                {includeFreightInTotal && (
+                  <div className="doc-total-line">
+                    <span>Freight Amount</span>
+                    <strong>{formatMoney(parseNumber(terms.freightAmount))}</strong>
+                  </div>
+                )}
+                {includePackingForwardingInTotal && (
+                  <div className="doc-total-inline">
+                    <label>
+                      <span>Packing &amp; Forwarding %</span>
+                      <input
+                        name="packingForwardingPercent"
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={terms.packingForwardingPercent || ''}
+                        onChange={handleTermsChange}
+                        placeholder="0"
+                      />
+                    </label>
+                  </div>
+                )}
+                {includePackingForwardingInTotal && (
+                  <div className="doc-total-line">
+                    <span>Packing &amp; Forwarding Amount</span>
+                    <strong>{formatMoney(packingForwardingAmount)}</strong>
+                  </div>
+                )}
+                {moveTaxBelowPacking && (
+                  <div className="doc-total-inline">
+                    <label>
+                      <span>{taxLabel} %</span>
+                      <input
+                        name="tax"
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={terms.tax}
+                        onChange={handleTermsChange}
+                        placeholder="0"
+                      />
+                    </label>
+                  </div>
+                )}
+                {moveTaxBelowPacking && (
+                  <div className="doc-total-line">
+                    <span>{taxLabel} Amount</span>
+                    <strong>{formatMoney(taxAmount)}</strong>
+                  </div>
+                )}
+                {showTaxAmountLine && (
+                  <div className="doc-total-line">
+                    <span>Tax Amount</span>
+                    <strong>{formatMoney(taxAmount)}</strong>
+                  </div>
+                )}
+                <div className="doc-total-line doc-total-line--grand">
+                  <span>{totalLabel}</span>
+                  <strong>{formatMoney(grandTotal)}</strong>
+                </div>
+              </>
+            )}
+          </section>
+
+          {documentTitle !== 'TAX INVOICE' && documentTitle !== 'DELIVERY CHALAN' && (
+            <section className="doc-section">
+              <div className="doc-section-heading">Terms and Conditions</div>
+              <div className="doc-form-grid doc-form-grid--terms">
                 <label>
-                  <span>{taxLabel} %</span>
+                  <span>Payment</span>
                   <input
-                    name="tax"
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={terms.tax}
+                    name="payment"
+                    value={terms.payment}
                     onChange={handleTermsChange}
-                    placeholder="0"
+                    placeholder="Payment terms"
                   />
                 </label>
-              </div>
-            )}
-            {includeFreightInTotal && (
-              <div className="doc-total-line">
-                <span>Freight Amount</span>
-                <strong>{formatMoney(parseNumber(terms.freightAmount))}</strong>
-              </div>
-            )}
-            {includePackingForwardingInTotal && (
-              <div className="doc-total-inline">
+                <label>
+                  <span>Delivery Schedule</span>
+                  <input
+                    name="deliverySchedule"
+                    value={terms.deliverySchedule}
+                    onChange={handleTermsChange}
+                    placeholder="Delivery schedule"
+                  />
+                </label>
                 <label>
                   <span>Packing &amp; Forwarding %</span>
                   <input
@@ -920,116 +1215,42 @@ const DocumentComposer = ({
                     placeholder="0"
                   />
                 </label>
-              </div>
-            )}
-            {includePackingForwardingInTotal && (
-              <div className="doc-total-line">
-                <span>Packing &amp; Forwarding Amount</span>
-                <strong>{formatMoney(packingForwardingAmount)}</strong>
-              </div>
-            )}
-            {moveTaxBelowPacking && (
-              <div className="doc-total-inline">
+                {(showFreightAmountField || includeFreightInTotal) && (
+                  <label>
+                    <span>Freight Amount</span>
+                    <input
+                      name="freightAmount"
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={terms.freightAmount || ''}
+                      onChange={handleTermsChange}
+                      placeholder="Freight amount"
+                    />
+                  </label>
+                )}
                 <label>
-                  <span>{taxLabel} %</span>
+                  <span>Validity</span>
                   <input
-                    name="tax"
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={terms.tax}
+                    name="validity"
+                    value={terms.validity}
                     onChange={handleTermsChange}
-                    placeholder="0"
+                    placeholder="Offer validity"
+                  />
+                </label>
+                <label className="doc-meta-full">
+                  <span>Notes</span>
+                  <textarea
+                    name="notes"
+                    value={terms.notes}
+                    onChange={handleTermsChange}
+                    placeholder="Additional notes"
+                    rows={3}
                   />
                 </label>
               </div>
-            )}
-            {moveTaxBelowPacking && (
-              <div className="doc-total-line">
-                <span>{taxLabel} Amount</span>
-                <strong>{formatMoney(taxAmount)}</strong>
-              </div>
-            )}
-            {showTaxAmountLine && (
-              <div className="doc-total-line">
-                <span>Tax Amount</span>
-                <strong>{formatMoney(taxAmount)}</strong>
-              </div>
-            )}
-            <div className="doc-total-line doc-total-line--grand">
-              <span>{totalLabel}</span>
-              <strong>{formatMoney(grandTotal)}</strong>
-            </div>
-          </section>
-
-          <section className="doc-section">
-            <div className="doc-section-heading">Terms and Conditions</div>
-            <div className="doc-form-grid doc-form-grid--terms">
-              <label>
-                <span>Payment</span>
-                <input
-                  name="payment"
-                  value={terms.payment}
-                  onChange={handleTermsChange}
-                  placeholder="Payment terms"
-                />
-              </label>
-              <label>
-                <span>Delivery Schedule</span>
-                <input
-                  name="deliverySchedule"
-                  value={terms.deliverySchedule}
-                  onChange={handleTermsChange}
-                  placeholder="Delivery schedule"
-                />
-              </label>
-              <label>
-                <span>Packing &amp; Forwarding %</span>
-                <input
-                  name="packingForwardingPercent"
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={terms.packingForwardingPercent || ''}
-                  onChange={handleTermsChange}
-                  placeholder="0"
-                />
-              </label>
-              {(showFreightAmountField || includeFreightInTotal) && (
-                <label>
-                  <span>Freight Amount</span>
-                  <input
-                    name="freightAmount"
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={terms.freightAmount || ''}
-                    onChange={handleTermsChange}
-                    placeholder="Freight amount"
-                  />
-                </label>
-              )}
-              <label>
-                <span>Validity</span>
-                <input
-                  name="validity"
-                  value={terms.validity}
-                  onChange={handleTermsChange}
-                  placeholder="Offer validity"
-                />
-              </label>
-              <label className="doc-meta-full">
-                <span>Notes</span>
-                <textarea
-                  name="notes"
-                  value={terms.notes}
-                  onChange={handleTermsChange}
-                  placeholder="Additional notes"
-                  rows={3}
-                />
-              </label>
-            </div>
-          </section>
+            </section>
+          )}
         </div>
 
         <div className="doc-footer">

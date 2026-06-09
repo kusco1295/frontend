@@ -24,6 +24,8 @@ import InquiryPage from './pages/InquiryPage';
 import DepartmentDetailPage from './pages/DepartmentDetailPage';
 import QuotationPage from './pages/QuotationPage';
 import ProformaPage from './pages/ProformaPage';
+import TaxInvoicePage from './pages/TaxInvoicePage';
+import DeliveryChalanPage from './pages/DeliveryChalanPage';
 import ProductPage from './pages/ProductPage';
 
 // Inner component that uses useAuth
@@ -84,6 +86,8 @@ const AppRoutes = () => {
         <Route path={`${ROUTES.ADMIN_DEPARTMENT}/:dept`} element={<DepartmentDetailPage />} />
         <Route path={ROUTES.ADMIN_QUOTATION} element={<QuotationPage />} />
         <Route path={ROUTES.ADMIN_PROFORMA} element={<ProformaPage />} />
+        <Route path={ROUTES.ADMIN_TAX_INVOICE} element={<TaxInvoicePage />} />
+        <Route path={ROUTES.ADMIN_DELIVERY_CHALAN} element={<DeliveryChalanPage />} />
       </Route>
     </Routes>
   );

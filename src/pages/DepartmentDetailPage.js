@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { MdArrowBack, MdForward, MdAttachFile, MdClose, MdDownload, MdBusiness, MdEmail, MdLocationOn, MdPhone, MdPictureAsPdf, MdSearch, MdCheckCircle, MdPrint } from 'react-icons/md';
+import { MdArrowBack, MdForward, MdAttachFile, MdClose, MdDownload, MdBusiness, MdEmail, MdLocationOn, MdPhone, MdPictureAsPdf, MdSearch, MdCheckCircle, MdPrint, MdAdd } from 'react-icons/md';
 import { customerAPI, materialAPI, approvalAPI } from '../services/adminAPI';
 import { useAuth } from '../hooks/useAuth';
 import { ROUTES } from '../constants/endpoints';
@@ -9,6 +9,7 @@ import '../styles/DepartmentDetail.css';
 const DEPARTMENTS = [
   'Planning Dept', 'Design Dept', 'Purchase Dept', 'Sales Dept',
   'Sales Coordinator', 'Account Dept', 'Production Dept', 'Service Dept',
+  'Quality Dept', 'Dispatch Dept', 'Assembly Dept', 'R&D Dept',
 ];
 
 const DepartmentDetailPage = () => {
@@ -433,9 +434,13 @@ const DepartmentDetailPage = () => {
 
   const quotationDocs = sharedDocs.filter((doc) => doc.type === 'quotation');
   const proformaDocs = sharedDocs.filter((doc) => doc.type === 'proforma');
+  const taxInvoiceDocs = sharedDocs.filter((doc) => doc.type === 'tax_invoice');
+  const deliveryChalanDocs = sharedDocs.filter((doc) => doc.type === 'delivery_chalan');
   const inquiryCount = inquiries.length;
   const quotationCount = quotationDocs.length;
   const proformaCount = proformaDocs.length;
+  const taxInvoiceCount = taxInvoiceDocs.length;
+  const deliveryChalanCount = deliveryChalanDocs.length;
   const materialCount = materials.length;
   
   // Emails specifically forwarded to THIS department
@@ -668,6 +673,26 @@ const DepartmentDetailPage = () => {
                 <span className="dept-section-tab-count">{emailCount}</span>
               </button>
             )}
+            {deptName === 'Account Dept' && (
+              <button
+                type="button"
+                className={`dept-section-tab${activeSection === 'tax_invoice' ? ' dept-section-tab--active' : ''}`}
+                onClick={() => setActiveSection('tax_invoice')}
+              >
+                <span>Tax Invoice</span>
+                <span className="dept-section-tab-count">{taxInvoiceCount}</span>
+              </button>
+            )}
+            {deptName === 'Account Dept' && (
+              <button
+                type="button"
+                className={`dept-section-tab${activeSection === 'delivery_chalan' ? ' dept-section-tab--active' : ''}`}
+                onClick={() => setActiveSection('delivery_chalan')}
+              >
+                <span>Delivery Chalan</span>
+                <span className="dept-section-tab-count">{deliveryChalanCount}</span>
+              </button>
+            )}
           </>
         )}
       </div>
@@ -679,14 +704,40 @@ const DepartmentDetailPage = () => {
         <div className="empty-state"><p>No inquiries found for {deptName}.</p></div>
       )}
 
-      {!loading && !error && activeSection === 'quotation' && renderDocumentList(
-        quotationDocs,
-        `No quotation PDFs found for ${deptName}.`
+      {!loading && !error && activeSection === 'quotation' && (
+        <div className="dept-doc-list">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
+            <button 
+              className="dept-doc-download" 
+              onClick={() => navigate(ROUTES.ADMIN_QUOTATION)} 
+              style={{ background: '#667eea', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <MdAdd /> Create Quotation
+            </button>
+          </div>
+          {renderDocumentList(
+            quotationDocs,
+            `No quotation PDFs found for ${deptName}.`
+          )}
+        </div>
       )}
 
-      {!loading && !error && activeSection === 'proforma' && renderDocumentList(
-        proformaDocs,
-        `No proforma PDFs found for ${deptName}.`
+      {!loading && !error && activeSection === 'proforma' && (
+        <div className="dept-doc-list">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
+            <button 
+              className="dept-doc-download" 
+              onClick={() => navigate(ROUTES.ADMIN_PROFORMA)} 
+              style={{ background: '#f59e0b', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <MdAdd /> Create Proforma
+            </button>
+          </div>
+          {renderDocumentList(
+            proformaDocs,
+            `No proforma PDFs found for ${deptName}.`
+          )}
+        </div>
       )}
 
       {!loading && !error && activeSection === 'direct_email' && (
@@ -754,6 +805,42 @@ const DepartmentDetailPage = () => {
             <div className="empty-state">
               {emailsLoading ? <p>Checking your inbox...</p> : <p>No emails sent or received yet.</p>}
             </div>
+          )}
+        </div>
+      )}
+
+      {!loading && !error && activeSection === 'tax_invoice' && (
+        <div className="dept-doc-list">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
+            <button 
+              className="dept-doc-download" 
+              onClick={() => navigate(ROUTES.ADMIN_TAX_INVOICE)} 
+              style={{ background: '#10b981', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <MdAdd /> Create Tax Invoice
+            </button>
+          </div>
+          {renderDocumentList(
+            taxInvoiceDocs,
+            `No tax invoices found for ${deptName}.`
+          )}
+        </div>
+      )}
+
+      {!loading && !error && activeSection === 'delivery_chalan' && (
+        <div className="dept-doc-list">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
+            <button 
+              className="dept-doc-download" 
+              onClick={() => navigate(ROUTES.ADMIN_DELIVERY_CHALAN)} 
+              style={{ background: '#3b82f6', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <MdAdd /> Create Delivery Chalan
+            </button>
+          </div>
+          {renderDocumentList(
+            deliveryChalanDocs,
+            `No delivery chalans found for ${deptName}.`
           )}
         </div>
       )}
@@ -1207,6 +1294,15 @@ const DepartmentDetailPage = () => {
                       {deptName === 'Design Dept' && (
                         <button className="inq-material-btn">
                           Material Selection
+                        </button>
+                      )}
+                      {deptName === 'Account Dept' && (
+                        <button 
+                          className="inq-proforma-btn" 
+                          style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
+                          onClick={() => navigate(ROUTES.ADMIN_TAX_INVOICE, { state: { inq } })}
+                        >
+                          Tax Invoice
                         </button>
                       )}
                     </div>
